@@ -1,0 +1,12 @@
+[package]
+name = "view-facade-consumer"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+view = { path = "../../../crates/view", version = "0.1.0", default-features = false }

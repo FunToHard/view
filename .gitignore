@@ -1,0 +1,8 @@
+/target/
+/work/
+**/target/
+**/*.rs.bk
+*.pdb
+.DS_Store
+Thumbs.db
+# Cargo.lock is intentionally tracked for reproducible workspace builds.

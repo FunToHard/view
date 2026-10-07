@@ -1,0 +1,28 @@
+[package]
+name = "dependency-probe"
+description = "Development-only compatibility and GPU qualification checks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+wgpu.workspace = true
+cosmic-text.workspace = true
+glyphon.workspace = true
+accesskit.workspace = true
+accesskit_winit.workspace = true
+lyon.workspace = true
+unicode-segmentation.workspace = true
+bytemuck.workspace = true
+winit.workspace = true
+
+# This probe compiles the portable window boundary on Linux; accessibility
+# service integration there is not claimed by the adapter's compile check.
+[target.'cfg(target_os = "linux")'.dependencies]
+winit = { workspace = true, features = ["x11", "wayland", "wayland-dlopen"] }

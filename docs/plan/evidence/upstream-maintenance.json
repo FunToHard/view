@@ -1,0 +1,56 @@
+[
+  {
+    "repository": "rust-windowing/winit",
+    "commit": "01634067402db15d26a31bfd199f5c69a989813d",
+    "date": "2026-10-06T05:48:55Z",
+    "url": "https://github.com/rust-windowing/winit/commit/01634067402db15d26a31bfd199f5c69a989813d"
+  },
+  {
+    "repository": "microsoft/windows-rs",
+    "commit": "6d8258c859d692c4b7de1ca8e4dbf921af09a987",
+    "date": "2026-10-07T16:37:08Z",
+    "url": "https://github.com/microsoft/windows-rs/commit/6d8258c859d692c4b7de1ca8e4dbf921af09a987"
+  },
+  {
+    "repository": "gfx-rs/wgpu",
+    "commit": "5c9660184df44cb22c4fe3b7f22526b617221947",
+    "date": "2026-10-07T15:22:43Z",
+    "url": "https://github.com/gfx-rs/wgpu/commit/5c9660184df44cb22c4fe3b7f22526b617221947"
+  },
+  {
+    "repository": "pop-os/cosmic-text",
+    "commit": "f1a3461f3e8df67d2bbcfafb8bc61dc7aee5b2a6",
+    "date": "2026-09-30T16:06:26Z",
+    "url": "https://github.com/pop-os/cosmic-text/commit/f1a3461f3e8df67d2bbcfafb8bc61dc7aee5b2a6"
+  },
+  {
+    "repository": "grovesNL/glyphon",
+    "commit": "49dc8f7bafa8091f4d71521fd62ee6f647b556f5",
+    "date": "2026-07-09T17:34:04Z",
+    "url": "https://github.com/grovesNL/glyphon/commit/49dc8f7bafa8091f4d71521fd62ee6f647b556f5"
+  },
+  {
+    "repository": "AccessKit/accesskit",
+    "commit": "466e24e252103f4d82bd6fbab98141b551e46e0c",
+    "date": "2026-10-04T17:31:06Z",
+    "url": "https://github.com/AccessKit/accesskit/commit/466e24e252103f4d82bd6fbab98141b551e46e0c"
+  },
+  {
+    "repository": "nical/lyon",
+    "commit": "da19a62491dee4d6f228d0623994cb6c11d4a0d9",
+    "date": "2026-10-06T08:41:33Z",
+    "url": "https://github.com/nical/lyon/commit/da19a62491dee4d6f228d0623994cb6c11d4a0d9"
+  },
+  {
+    "repository": "unicode-rs/unicode-segmentation",
+    "commit": "346f36a42592047c3f3f324141554f05ac0b5908",
+    "date": "2026-09-17T16:04:14Z",
+    "url": "https://github.com/unicode-rs/unicode-segmentation/commit/346f36a42592047c3f3f324141554f05ac0b5908"
+  },
+  {
+    "repository": "Lokathor/bytemuck",
+    "commit": "ea3616110b0134e9991fdb66be8892dbc427c5ac",
+    "date": "2026-09-11T20:47:50Z",
+    "url": "https://github.com/Lokathor/bytemuck/commit/ea3616110b0134e9991fdb66be8892dbc427c5ac"
+  }
+]

@@ -1,0 +1,211 @@
+{
+  "target": "x86_64-pc-windows-msvc",
+  "packageCount": 127,
+  "registryPackageCount": 124,
+  "workspacePackageCount": 3,
+  "directSelections": [
+    {
+      "name": "accesskit",
+      "version": "0.25.1",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.87",
+      "repository": "https://github.com/AccessKit/accesskit",
+      "metadataResolvedFeatures": []
+    },
+    {
+      "name": "accesskit_winit",
+      "version": "0.34.1",
+      "license": "Apache-2.0",
+      "rustVersion": "1.87",
+      "repository": "https://github.com/AccessKit/accesskit",
+      "metadataResolvedFeatures": [
+        "rwh_06"
+      ]
+    },
+    {
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "rustVersion": null,
+      "repository": "https://github.com/Lokathor/bytemuck",
+      "metadataResolvedFeatures": [
+        "bytemuck_derive",
+        "derive",
+        "extern_crate_alloc",
+        "min_const_generics"
+      ]
+    },
+    {
+      "name": "cosmic-text",
+      "version": "0.19.0",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.89",
+      "repository": "https://github.com/pop-os/cosmic-text",
+      "metadataResolvedFeatures": [
+        "default",
+        "fontconfig",
+        "std",
+        "swash",
+        "sys-locale"
+      ]
+    },
+    {
+      "name": "glyphon",
+      "version": "0.12.0",
+      "license": "MIT OR Apache-2.0 OR Zlib",
+      "rustVersion": null,
+      "repository": "https://github.com/grovesNL/glyphon",
+      "metadataResolvedFeatures": []
+    },
+    {
+      "name": "lyon",
+      "version": "1.0.19",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": null,
+      "repository": "https://github.com/nical/lyon",
+      "metadataResolvedFeatures": []
+    },
+    {
+      "name": "unicode-segmentation",
+      "version": "1.13.3",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.85.0",
+      "repository": "https://github.com/unicode-rs/unicode-segmentation",
+      "metadataResolvedFeatures": []
+    },
+    {
+      "name": "wgpu",
+      "version": "30.0.1",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.87.0",
+      "repository": "https://github.com/gfx-rs/wgpu",
+      "metadataResolvedFeatures": [
+        "dx12",
+        "metal",
+        "std",
+        "vulkan",
+        "wgsl"
+      ]
+    },
+    {
+      "name": "windows",
+      "version": "0.62.2",
+      "license": "MIT OR Apache-2.0",
+      "rustVersion": "1.82",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "metadataResolvedFeatures": [
+        "Win32",
+        "Win32_Devices",
+        "Win32_Devices_DeviceAndDriverInstallation",
+        "Win32_Devices_Display",
+        "Win32_Foundation",
+        "Win32_Globalization",
+        "Win32_Graphics",
+        "Win32_Graphics_Direct3D",
+        "Win32_Graphics_Direct3D12",
+        "Win32_Graphics_Direct3D_Dxc",
+        "Win32_Graphics_Direct3D_Fxc",
+        "Win32_Graphics_DirectComposition",
+        "Win32_Graphics_Dwm",
+        "Win32_Graphics_Dxgi",
+        "Win32_Graphics_Dxgi_Common",
+        "Win32_Graphics_Gdi",
+        "Win32_Security",
+        "Win32_System",
+        "Win32_System_Com",
+        "Win32_System_Diagnostics",
+        "Win32_System_Diagnostics_Debug",
+        "Win32_System_Kernel",
+        "Win32_System_LibraryLoader",
+        "Win32_System_Ole",
+        "Win32_System_Performance",
+        "Win32_System_Threading",
+        "Win32_System_Variant",
+        "Win32_UI",
+        "Win32_UI_Accessibility",
+        "Win32_UI_Controls",
+        "Win32_UI_HiDpi",
+        "Win32_UI_Input",
+        "Win32_UI_Input_KeyboardAndMouse",
+        "Win32_UI_WindowsAndMessaging",
+        "default",
+        "std"
+      ]
+    },
+    {
+      "name": "winit",
+      "version": "0.30.13",
+      "license": "Apache-2.0",
+      "rustVersion": "1.70.0",
+      "repository": "https://github.com/rust-windowing/winit",
+      "metadataResolvedFeatures": [
+        "ahash",
+        "bytemuck",
+        "memmap2",
+        "percent-encoding",
+        "rwh_06",
+        "sctk",
+        "wayland",
+        "wayland-backend",
+        "wayland-client",
+        "wayland-dlopen",
+        "wayland-protocols",
+        "wayland-protocols-plasma",
+        "x11",
+        "x11-dl",
+        "x11rb"
+      ]
+    }
+  ],
+  "duplicateFamilies": [
+    {
+      "name": "font-types",
+      "versions": [
+        "0.11.3",
+        "0.12.6"
+      ]
+    },
+    {
+      "name": "hashbrown",
+      "versions": [
+        "0.16.1",
+        "0.17.1"
+      ]
+    },
+    {
+      "name": "read-fonts",
+      "versions": [
+        "0.37.0",
+        "0.41.0"
+      ]
+    },
+    {
+      "name": "rustc-hash",
+      "versions": [
+        "1.1.0",
+        "2.1.3"
+      ]
+    },
+    {
+      "name": "skrifa",
+      "versions": [
+        "0.40.0",
+        "0.44.0"
+      ]
+    },
+    {
+      "name": "smol_str",
+      "versions": [
+        "0.2.2",
+        "0.3.6"
+      ]
+    },
+    {
+      "name": "syn",
+      "versions": [
+        "2.0.119",
+        "3.0.6"
+      ]
+    }
+  ]
+}
