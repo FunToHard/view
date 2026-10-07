@@ -88,6 +88,22 @@ Raw logs, actual environment and feature inventory are regenerated under
 from Git to avoid machine-specific trace churn. Source fixtures, manifests,
 lockfiles and this concise evidence are retained.
 
+## Clean-checkout reproduction
+
+Baseline commit: `9db5751` (Bootstrap view and qualify M0 dependency and CI foundation).
+Created a separate local clone with `git clone --no-hardlinks --no-checkout`, then
+checked out that revision detached. Its status was clean before verification.
+Ran its own `scripts/verify.ps1` successfully: formatting, all-target compilation,
+strict Clippy, six tests, rustdoc, facade profiles, independent consumer, fixture
+hashes, dependency inventory and Windows platform probe all passed.
+
+The root Cargo target cache was reused through CARGO_TARGET_DIR; the consumer used
+its separate target directory. This proves clean **source-checkout** reproducibility
+with caches, not an offline installation or a cold-machine build. No untracked
+source or work/ files were copied into the checkout. Both lockfiles are tracked;
+target/ and work/ artifacts remain ignored. GPU and hidden native-window tests were
+run in the primary checkout at the same source baseline, separately from CPU CI.
+
 ## Remaining gates
 
 - M0-10: three-OS CPU workflows are configured but have not run remotely.
@@ -95,7 +111,7 @@ lockfiles and this concise evidence are retained.
   provisioning and execution remain unavailable. GitHub reported zero self-hosted runners.
 - M0-13: dedicated desktop, DPI/display matrix and named Japanese IME fixture are
   not provisioned/verified. No physical input was injected or user input settings changed.
-- M0-14: clean committed-checkout reproduction is recorded below when performed.
+- M0-14: complete locally as recorded above.
 - M0-15: remains open until required infrastructure evidence and the Phase 2
   native-shell contract exist. Hidden native window creation alone cannot certify
   caption/snap/focus/IME behavior or the shared UI runtime.

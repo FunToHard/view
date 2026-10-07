@@ -74,7 +74,7 @@ Capabilities: C-45. Acceptance: foundation for T-15 and T-39.
 - [x] **M0-11** Inventory owned fonts, images, text, protocol and network fixtures with licenses, versions/seeds and deterministic loading rules. Evidence: [current inventory](../../tests/fixtures/README.md), hash manifest and verification; absent asset families explicitly recorded.
 - [ ] **M0-12** Specify and provision compatible offscreen GPU runners on all three OSes; record actual adapters/backends and software/hardware classification. Partial: local Windows DX12 passed; [runner contract](runner-contract.md) written, no Linux/macOS GPU machines registered.
 - [ ] **M0-13** Specify and provision the Windows 11 x64 interactive test session, display/DPI configurations, en-US keyboard and Japanese IME; define isolation, serialization and interruption cleanup. Partial: [session contract](runner-contract.md) written; dedicated session/IME and physical-input evidence unavailable.
-- [ ] **M0-14** Establish a clean-checkout reproduction record once a baseline commit exists; verify lockfile tracking, ignored artifacts and contributor commands. Commit/push operations follow the requested Git workflow, not this checkbox alone.
+- [x] **M0-14** Establish a clean-checkout reproduction record once a baseline commit exists; verify lockfile tracking, ignored artifacts and contributor commands. Evidence: baseline 9db5751 passed the complete CPU verification in a separate clean checkout with build caches reused; [reproduction record](evidence/m0-qualification.md#clean-checkout-reproduction). Both lockfiles tracked; generated files ignored.
 - [ ] **M0-15** Close the engineering gate with dependency/feature inventory, CPU execution reports, provisioning status and Phase 2 native-shell evidence. Keep unavailable coverage explicitly open. Blocked by M0-10/M0-12/M0-13 and the Phase 2 shell; hidden native lifecycle smoke is only partial evidence.
 
 ## 1. Build runtime ownership and the harness — M1
@@ -350,6 +350,7 @@ add a row here rather than duplicating status in another plan.
 | Item(s) | Evidence | Coverage / limitation |
 | --- | --- | --- |
 | M0-01–M0-05 | [Bootstrap record](initial-backlog.md#bootstrap-evidence--2026-10-07) and linked repository files | Local Windows scaffold only; zero behavior tests; no commits/pushes or remote CI execution during setup |
+| M0-06–M0-09, M0-11, M0-14 | [M0 qualification](evidence/m0-qualification.md) | Six local tests, hardware GPU readback, hidden native lifecycle and committed clean-checkout CPU verification; no remote OS or physical-input certification |
 
 All later entries remain unchecked until their concrete deliverables and applicable
 verification exist. A milestone is complete only when its required implementation
