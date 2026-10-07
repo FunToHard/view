@@ -5,7 +5,7 @@ checklist remains the progress record; this document records required environmen
 
 | Environment | Contract | Current evidence |
 | --- | --- | --- |
-| Hosted CPU | GitHub Actions windows-2025, ubuntu-24.04, macos-15; pinned Rust; pwsh; locked checks and independent consumer | Workflow written; no remote execution recorded yet |
+| Hosted CPU | GitHub Actions windows-2025, ubuntu-24.04, macos-15; pinned Rust; pwsh; locked checks and independent consumer | All three passed [run 37658180508](https://github.com/FunToHard/view/actions/runs/37658180508); actual environments in [M0 evidence](evidence/m0-qualification.md#hosted-cpu-execution) |
 | Windows GPU | Windows 11 x64; DX12-capable adapter and driver; optional separate Vulkan qualification | Local RTX 3050 detected; execution result in M0 evidence |
 | Linux GPU | Linux native host, Vulkan loader and compatible device/driver; pwsh and Rust/linker | No registered runner or machine supplied |
 | macOS GPU | Native macOS host with Metal device, Rust/linker and pwsh | No registered runner or machine supplied |

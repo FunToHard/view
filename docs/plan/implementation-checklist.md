@@ -24,10 +24,11 @@ team or fixed delivery dates are assumed.
 - Review public API examples during their owning phase, before stabilizing those
   APIs. Do not wait until all features exist to start testing, semantics or tooling.
 
-The current external gate is **M0-10** (execute hosted CPU CI). Local qualification
+Hosted CPU CI passed on all three OSes (**M0-10**). The next external gates are
+**M0-12/M0-13** (GPU runners and a dedicated interactive session). Qualification
 is recorded in [M0 evidence](evidence/m0-qualification.md). Windows GPU compute/readback
 and hidden native create/close passed; these do not certify the UI runtime, physical
-input, text rendering or other operating systems. M0 remains open at its required
+input or text rendering. M0 remains open at its required
 infrastructure/native-shell gates.
 
 ## Sequence at a glance
@@ -70,12 +71,12 @@ Capabilities: C-45. Acceptance: foundation for T-15 and T-39.
 - [x] **M0-07** Probe compatible wgpu/cosmic-text/glyphon/windows/winit/AccessKit versions plus lyon, Unicode segmentation and bytemuck; pin the coherent family centrally without adding unused dependencies to core. Evidence: [qualified versions and checks](evidence/m0-qualification.md), [inventory](evidence/dependencies-windows.json).
 - [x] **M0-08** Define supported package/feature profiles and independent consumer-check commands; retain publish=false until release qualification. Evidence: [profiles](feature-profiles.md), separate consumer/lockfile and successful local build.
 - [x] **M0-09** Add GitHub Actions format, lint, build, test and documentation jobs with locked dependencies and named Windows/Linux/macOS environments; preserve reports on failure. Evidence: [CPU workflow](../../.github/workflows/ci.yml), shared verification script passed locally; remote execution is M0-10.
-- [ ] **M0-10** Execute CPU jobs on all three OSes and record environment/toolchain manifests. Add meaningful runtime tests as Phase 1 lands; an empty suite is bootstrap evidence only. Pending: publish reviewed workflow to the configured remote and execute CI.
+- [x] **M0-10** Execute CPU jobs on all three OSes and record environment/toolchain manifests. Add meaningful runtime tests as Phase 1 lands; an empty suite is bootstrap evidence only. Evidence: [successful three-OS run and retained manifests](evidence/m0-qualification.md#hosted-cpu-execution); CPU dependency/packaging coverage, no GPU/native E2E certification.
 - [x] **M0-11** Inventory owned fonts, images, text, protocol and network fixtures with licenses, versions/seeds and deterministic loading rules. Evidence: [current inventory](../../tests/fixtures/README.md), hash manifest and verification; absent asset families explicitly recorded.
 - [ ] **M0-12** Specify and provision compatible offscreen GPU runners on all three OSes; record actual adapters/backends and software/hardware classification. Partial: local Windows DX12 passed; [runner contract](runner-contract.md) written, no Linux/macOS GPU machines registered.
 - [ ] **M0-13** Specify and provision the Windows 11 x64 interactive test session, display/DPI configurations, en-US keyboard and Japanese IME; define isolation, serialization and interruption cleanup. Partial: [session contract](runner-contract.md) written; dedicated session/IME and physical-input evidence unavailable.
 - [x] **M0-14** Establish a clean-checkout reproduction record once a baseline commit exists; verify lockfile tracking, ignored artifacts and contributor commands. Evidence: baseline 9db5751 passed the complete CPU verification in a separate clean checkout with build caches reused; [reproduction record](evidence/m0-qualification.md#clean-checkout-reproduction). Both lockfiles tracked; generated files ignored.
-- [ ] **M0-15** Close the engineering gate with dependency/feature inventory, CPU execution reports, provisioning status and Phase 2 native-shell evidence. Keep unavailable coverage explicitly open. Blocked by M0-10/M0-12/M0-13 and the Phase 2 shell; hidden native lifecycle smoke is only partial evidence.
+- [ ] **M0-15** Close the engineering gate with dependency/feature inventory, CPU execution reports, provisioning status and Phase 2 native-shell evidence. Keep unavailable coverage explicitly open. Blocked by M0-12/M0-13 and the Phase 2 shell; hidden native lifecycle smoke is only partial evidence.
 
 ## 1. Build runtime ownership and the harness — M1
 
@@ -351,6 +352,7 @@ add a row here rather than duplicating status in another plan.
 | --- | --- | --- |
 | M0-01–M0-05 | [Bootstrap record](initial-backlog.md#bootstrap-evidence--2026-10-07) and linked repository files | Local Windows scaffold only; zero behavior tests; no commits/pushes or remote CI execution during setup |
 | M0-06–M0-09, M0-11, M0-14 | [M0 qualification](evidence/m0-qualification.md) | Six local tests, hardware GPU readback, hidden native lifecycle and committed clean-checkout CPU verification; no remote OS or physical-input certification |
+| M0-10 | [Hosted CPU evidence](evidence/m0-qualification.md#hosted-cpu-execution) | Windows x64, Linux x64 and macOS ARM64 jobs passed; environment manifests retained; no GPU or physical-input execution |
 
 All later entries remain unchecked until their concrete deliverables and applicable
 verification exist. A milestone is complete only when its required implementation

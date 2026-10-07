@@ -1,6 +1,6 @@
 # M0 qualification evidence
 
-Date: 2026-10-07. This report records executed local work, not full milestone
+Date: 2026-10-07. This report records executed local and CI work, not full milestone
 closure. See the [canonical checklist](../implementation-checklist.md).
 
 ## Selected dependency family
@@ -104,9 +104,31 @@ source or work/ files were copied into the checkout. Both lockfiles are tracked;
 target/ and work/ artifacts remain ignored. GPU and hidden native-window tests were
 run in the primary checkout at the same source baseline, separately from CPU CI.
 
+## Hosted CPU execution
+
+[Run 37658180508](https://github.com/FunToHard/view/actions/runs/37658180508)
+passed all three jobs at commit `ddd0e80b73dec91a8e471c600fb96b6186a5641d`.
+Downloaded artifacts were inspected; their environment manifests are retained in
+[cpu-ci-environments.json](cpu-ci-environments.json). All jobs used Rust 1.98.1.
+
+| Runner | Actual environment | Image version | Result |
+| --- | --- | --- | --- |
+| windows-2025 | Windows build 10.0.26100, x64 MSVC | 20260925.250.1 | Passed |
+| ubuntu-24.04 | Ubuntu 24.04.5 LTS, x64 GNU | 20261004.327.1 | Passed |
+| macos-15 | macOS 15.7.9, Apple ARM64 | 20260907.0337.1 | Passed |
+
+Each job passed formatting, locked workspace compilation, strict Clippy, tests,
+rustdoc, facade profiles, independent consumer and fixture/inventory checks.
+Windows ran the four platform tests and two dependency tests; Linux/macOS ran
+the two dependency tests and one unsupported-platform contract test. The latter
+does not exercise native platform functionality. No GPU or physical input was
+requested by these jobs. Hosted Windows is not Windows 11 desktop certification;
+macOS ARM64 execution does not establish x64 coverage. Reports were uploaded
+successfully with 14-day retention; the retained manifests and this report preserve
+the result after raw artifact expiry. M0-10 is complete.
+
 ## Remaining gates
 
-- M0-10: three-OS CPU workflows are configured but have not run remotely.
 - M0-12: Windows local GPU execution passed; Linux Vulkan/macOS Metal runner
   provisioning and execution remain unavailable. GitHub reported zero self-hosted runners.
 - M0-13: dedicated desktop, DPI/display matrix and named Japanese IME fixture are
@@ -120,4 +142,5 @@ The CPU workflow uses pinned official checkout/upload action commits, read-only
 contents permissions and short artifact retention. GPU jobs require manual dispatch
 to provisioned isolated runners; see the [runner contract](../runner-contract.md).
 Writing a workflow is not proof of an executed job. No paid hardware, runner
-registration, remote publication or credentials are created by these local checks.
+registration or credentials are created by these local checks. The baseline was
+pushed to the public repository with explicit owner authorization; CPU CI then ran.
