@@ -31,6 +31,11 @@ and hidden native create/close passed; these do not certify the UI runtime, phys
 input or text rendering. M0 remains open at its required
 infrastructure/native-shell gates.
 
+**M1A-01–M1A-14 are complete** with [headless runtime and three-platform CPU
+evidence](evidence/m1a-runtime.md). The owner skipped remaining M0 work for this
+increment; those gates stay open. Phase 2 (M1B) native geometry/input/shell work
+has not been implemented by this increment.
+
 ## Sequence at a glance
 
 | Order | Work | Milestone | Prerequisite |
@@ -84,7 +89,7 @@ Sources: [runtime](../design/02-runtime-architecture.md), RUN-01/RUN-02/RUN-05.
 Capabilities: C-01, C-02, C-03, C-07, C-10, C-37 foundations.
 Acceptance: headless portions of T-01 through T-05.
 
-- [x] **M1A-01** Introduce view-core and view-testing when their first implementations land; define errors, revisions, window IDs and arena handles without backend/platform types. Evidence: [foundation contracts and local verification](evidence/m1a-01-foundations.md). Core and the M1A-11 view-testing harness now exist; see the later runtime evidence. New Linux/macOS execution remains uncovered.
+- [x] **M1A-01** Introduce view-core and view-testing when their first implementations land; define errors, revisions, window IDs and arena handles without backend/platform types. Evidence: [foundation contracts and local verification](evidence/m1a-01-foundations.md). Core and the M1A-11 view-testing harness now exist; see the later runtime evidence. Windows/Linux/macOS CPU execution is recorded in the runtime report.
 - [x] **M1A-02** Implement generational arena identity, ownership links and stale-handle rejection; test slot reuse and invalid parent references. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
 - [x] **M1A-03** Implement mount/unmount and hidden/clipped/suspended distinctions; revoke owned subscriptions, tasks and callbacks on removal. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
 - [x] **M1A-04** Implement component registry ownership, state storage and owned callbacks with dispatch-time model access; reject invalid lifetime/thread use. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
@@ -96,7 +101,7 @@ Acceptance: headless portions of T-01 through T-05.
 - [x] **M1A-10** Add owner/request-generation checks and cancellation hooks for worker completions; test late completion after unmount/reuse. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
 - [x] **M1A-11** Implement controlled clock, service fixtures, deterministic input queue and revision-tagged runtime snapshots. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
 - [x] **M1A-12** Add bounded action/invalidation/lifecycle breadcrumbs and idle counters through an optional observer interface; no global telemetry or panic hook. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
-- [ ] **M1A-13** Run identity, reconciliation, action-once, skipped-region and stale-completion tests on all CPU platforms; record seeds and independent expected outcomes. Partial: all scenarios and a fixed seed pass locally on Windows; new Linux/macOS execution remains open. See [coverage](evidence/m1a-runtime.md#coverage-remaining).
+- [x] **M1A-13** Run identity, reconciliation, action-once, skipped-region and stale-completion tests on all CPU platforms; record seeds and independent expected outcomes. Evidence: [three-platform CPU execution and retained environments](evidence/m1a-runtime.md#three-platform-cpu-execution--m1a-13); Windows x64, Linux x64 and macOS ARM64 passed. No GPU/native E2E claim.
 - [x] **M1A-14** Review the small runtime API and dependency direction before exposing more facade types; demonstrate no continuous rebuild when idle. Evidence: [headless runtime implementation and Windows verification](evidence/m1a-runtime.md).
 
 ## 2. Add geometry, input and the native shell — M1
@@ -354,7 +359,7 @@ add a row here rather than duplicating status in another plan.
 | M0-06–M0-09, M0-11, M0-14 | [M0 qualification](evidence/m0-qualification.md) | Six local tests, hardware GPU readback, hidden native lifecycle and committed clean-checkout CPU verification; no remote OS or physical-input certification |
 | M0-10 | [Hosted CPU evidence](evidence/m0-qualification.md#hosted-cpu-execution) | Windows x64, Linux x64 and macOS ARM64 jobs passed; environment manifests retained; no GPU or physical-input execution |
 | M1A-01 | [Foundation evidence](evidence/m1a-01-foundations.md) | Historical first-increment Windows value-type evidence; later runtime evidence supersedes implementation limits |
-| M1A-02–M1A-12, M1A-14 | [Headless runtime evidence](evidence/m1a-runtime.md) | Windows CPU contracts, harness, example and independent consumer; M1A-13 Linux/macOS execution remains open; no M1B/native certification |
+| M1A-02–M1A-14 | [Headless runtime and three-platform CPU evidence](evidence/m1a-runtime.md) | Windows x64, Linux x64 and macOS ARM64 contracts, harness, example and independent consumer passed; no M1B/native certification |
 
 All later entries remain unchecked until their concrete deliverables and applicable
 verification exist. A milestone is complete only when its required implementation

@@ -197,8 +197,9 @@ executor, native input or GPU requirement is added to either production package.
 Reason: establish testable lifecycle/effect boundaries before native geometry,
 semantics and rendering. Contracts and acceptance evidence are in the
 [headless guide](../guides/headless-runtime.md) and
-[M1A runtime report](../plan/evidence/m1a-runtime.md). Performance, native behavior
-and new Linux/macOS execution are not inferred from Windows CPU checks.
+[M1A runtime report](../plan/evidence/m1a-runtime.md). Windows/Linux/macOS CPU
+execution is recorded there; performance and native behavior are not inferred
+from headless checks.
 
 ### Revision procedure
 

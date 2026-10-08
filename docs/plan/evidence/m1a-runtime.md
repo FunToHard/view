@@ -1,6 +1,7 @@
 # M1A headless runtime evidence
 
-Date: 2026-10-08. Executed locally on Windows x64 with pinned Rust 1.98.1.
+Date: 2026-10-08. Executed locally on Windows x64 and in three-platform CPU CI
+with pinned Rust 1.98.1.
 The canonical [checklist](../implementation-checklist.md) remains the progress
 record. M0 continuation was explicitly skipped by the owner; its open gates are
 unchanged. This report does not close native T-01/T-04 or the complete M1 milestone.
@@ -84,9 +85,34 @@ review, not an independent third-party audit.
 
 ## Coverage remaining
 
-M1A-13 remains open: these new tests have not executed on Linux/macOS. The existing
-three-OS CPU workflow runs the updated verification script when this revision is
-made available to CI; historical M0 runs cannot certify these changes. No new
-push, remote CI result, native window/GPU or physical-input execution is claimed.
 M0 remains explicitly skipped/open per the owner, including GPU/interactive
-provisioning and its dependency on the Phase 2 native shell.
+provisioning and its dependency on the Phase 2 native shell. No native window/GPU
+or physical-input execution is claimed. Hosted Windows is not native desktop
+certification, and macOS ARM64 does not establish macOS x64 coverage.
+
+## Three-platform CPU execution — M1A-13
+
+After explicit owner authorization, implementation commit
+`7b3053b37cab3fc5ef734e9162e9d844f34c8e10` was pushed on `codex/m1a-runtime`.
+[CPU run 37736807052](https://github.com/FunToHard/view/actions/runs/37736807052)
+passed all three jobs. Downloaded environment manifests are retained in
+[m1a-cpu-environments.json](m1a-cpu-environments.json).
+
+| Runner | Recorded environment | Result |
+| --- | --- | --- |
+| windows-2025 | Windows build 10.0.26100, x64 MSVC; image 20260925.250.1 | Passed |
+| ubuntu-24.04 | Ubuntu 24.04.5 LTS, x64 GNU; image 20261004.327.1 | Passed |
+| macos-15 | macOS 15.7.9, ARM64; image 20260907.0337.1 | Passed |
+
+All ran Rust 1.98.1, all 25 core/harness tests, three compile-fail doctests, the
+independent harness consumer test and the headless example with identical
+`model=5, builds=2, commits=2, idle_polls=100` output. Required formatting/check/
+Clippy/tests/rustdoc and package/fixture checks passed. Windows ran the six prior
+qualification tests; Linux/macOS ran two dependency tests and the unsupported
+platform contract test. The latter is not native platform coverage.
+
+Artifacts and job logs were inspected. The Windows PowerShell transcript omitted
+native executable output, so its actual test results were verified in the GitHub
+job log. Raw downloaded artifacts/logs are in ignored
+`target/verification/m1a-ci/`; CI artifacts have 14-day retention. The manifests,
+source revision, run link and this summary retain the evidence. M1A-13 is complete.
