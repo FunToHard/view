@@ -1,6 +1,12 @@
 # Community controls and behavioral completeness
 
-Status: revision 0.4 selected P-20/P-21 baseline. No controls or test harness are implemented yet.
+Status: selected P-20/P-21 baseline. The M2A shared editor/backend and profile
+adapters are implemented; standard controls are not yet certified.
+
+M2A completion update (2026-10-08): [editing contracts](../guides/text-editing.md)
+and [evidence](../plan/evidence/m2a-text-editing.md) now define the implemented
+Unicode/history/controlled-value policies, owned-font shaping and native service
+boundaries. The foundation paragraph below records the earlier M2A-01 slice.
 
 M2A-01 update (2026-10-08): `view-text` now supplies backend-independent text
 snapshots, checked UTF-8/UTF-16 indexing, value revisions and layout/editor traits.

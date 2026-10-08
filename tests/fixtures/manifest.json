@@ -14,6 +14,34 @@
       "license": "MIT OR Apache-2.0",
       "version": 1,
       "sha256LfUtf8": "3577f61cf72f7ea2ed1ed4d9fd5cdeef89238359b7ef7ebc2b80938d8a62a00c"
+    },
+    {
+      "path": "fonts/NotoSans-LICENSE",
+      "origin": "Unmodified cosmic-text 0.19.0 bundled Noto fonts; Google copyright, accompanying NotoSans-LICENSE",
+      "license": "OFL-1.1",
+      "version": 1,
+      "sha256Binary": "5ec4347054089def6904da61d04f0360968f9ef36634b1fe007a5b6ec2f7aa96"
+    },
+    {
+      "path": "fonts/NotoSans-Regular.ttf",
+      "origin": "Unmodified cosmic-text 0.19.0 bundled Noto fonts; Google copyright, accompanying NotoSans-LICENSE",
+      "license": "OFL-1.1",
+      "version": 1,
+      "sha256Binary": "2ec33f84606cbaa0a1a944488e14f97faf2f6a25ecdd8354f5358f06da13c7d9"
+    },
+    {
+      "path": "fonts/NotoSansArabic.ttf",
+      "origin": "Unmodified cosmic-text 0.19.0 bundled Noto fonts; Google copyright, accompanying NotoSans-LICENSE",
+      "license": "OFL-1.1",
+      "version": 1,
+      "sha256Binary": "ee489b994b3e62def9874c918145e32b133b625abaf98cec60502bdb40102c56"
+    },
+    {
+      "path": "fonts/NotoSansHebrew.ttf",
+      "origin": "Unmodified cosmic-text 0.19.0 bundled Noto fonts; Google copyright, accompanying NotoSans-LICENSE",
+      "license": "OFL-1.1",
+      "version": 1,
+      "sha256Binary": "3d4fef85b449ade4d165de982969374fa30b2a5fe7bc679f5a3f5bfc047fb703"
     }
   ]
 }

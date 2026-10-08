@@ -4,6 +4,17 @@
 //! certified by these interfaces. All layout coordinates are local logical units.
 #![forbid(unsafe_code)]
 
+mod boundaries;
+mod editor;
+mod profiles;
+#[cfg(feature = "shaping")]
+mod shaping;
+pub use boundaries::*;
+pub use editor::*;
+pub use profiles::*;
+#[cfg(feature = "shaping")]
+pub use shaping::*;
+
 use std::{fmt, sync::Arc};
 use view_core::{LogicalPoint, LogicalRect, LogicalSize, Revision, ScaleFactor};
 
@@ -16,6 +27,12 @@ pub enum TextError {
     RevisionExhausted,
     InvalidMetrics,
     Unsupported,
+    ReadOnly,
+    Disabled,
+    LengthLimit,
+    Validation,
+    Clipboard,
+    NoFonts,
 }
 
 impl fmt::Display for TextError {
@@ -164,7 +181,7 @@ pub enum Wrap {
 
 /// Backend-independent shaping inputs. Font revision is supplied by the owner
 /// whenever its font collection/fallback configuration changes. DPI is explicit.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LayoutRequest {
     pub text: TextSnapshot,
     pub font_family: String,
@@ -215,6 +232,8 @@ pub struct Composition {
     pub range: std::ops::Range<usize>,
     pub preedit: String,
     pub selection: Selection,
+    /// Some IMEs hide the preedit cursor while the candidate UI owns navigation.
+    pub cursor_visible: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -13,6 +13,8 @@ pub mod error;
 pub mod events;
 pub mod services;
 pub mod shell;
+#[cfg(feature = "text")]
+pub mod text;
 pub mod window;
 
 pub use app::{AppConfig, PlatformApp, PlatformHandler};

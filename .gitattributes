@@ -11,5 +11,7 @@
 *.wgsl text eol=lf
 *.json text eol=lf
 *.txt text eol=lf
+*.ttf binary
+tests/fixtures/fonts/*-LICENSE -text
 Cargo.lock text eol=lf
 LICENSE-* text eol=lf

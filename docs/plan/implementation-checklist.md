@@ -134,19 +134,21 @@ Sources: [control profiles](../design/13-controls-and-conformance.md).
 Capabilities: C-16, C-42; C-04 text measurement. Acceptance: headless T-29–T-31, T-01 editing extension.
 
 - [x] **M2A-01** Introduce view-text; define text indexing, revisions, shaping/measurement and editor-session interfaces before exposing backend types. [Windows local verification](evidence/m2a-01-text-foundations.md); shaping/editing implementations remain in later items.
-- [ ] **M2A-02** Integrate font discovery/owned fixtures, fallback, shaping, line layout and caches; define font/DPI invalidation and glyph lifetime rules.
-- [ ] **M2A-03** Implement grapheme/word boundaries, bidi-aware logical/visual caret policy and shaped-run hit mapping; test mixed scripts, ligatures and emoji.
-- [ ] **M2A-04** Define versioned SingleLineText v1 and plain-multiline behavior matrices with mandatory/optional/not-applicable cases and independent expected edits.
-- [ ] **M2A-05** Implement insertion, selected-range replacement, Backspace/Delete, word deletion and empty/boundary/length-limit behavior.
-- [ ] **M2A-06** Implement caret movement, Home/End/word movement, selection anchor/direction, Shift extension, select-all and pointer/word selection.
-- [ ] **M2A-07** Implement field undo/redo grouping for typing, paste and composition; define coordination with application document undo scopes.
-- [ ] **M2A-08** Implement revision-aware controlled values, validation and external replacement policies without stale echoes overwriting selection/composition.
-- [ ] **M2A-09** Implement read-only/disabled/placeholder behavior, caret blink through the test clock, horizontal scrolling and drag-selection caret reveal.
-- [ ] **M2A-10** Integrate clipboard copy/cut/paste and single-line newline policy; use deterministic service fixtures and actual native clipboard checks.
-- [ ] **M2A-11** Integrate IME preedit/commit/cancel, composition replacement and candidate-position reporting; defer rendered-position certification to Phases 5/8.
-- [ ] **M2A-12** Extend plain multiline behavior with line navigation, vertical movement, wrapping, newline/Tab policy and scrolling.
-- [ ] **M2A-13** Build reusable profile adapters/reports; property-test valid selections and undo/edit sequences alongside explicit behavior fixtures.
-- [ ] **M2A-14** Pass headless editing/profile tests and record native/render cases still uncovered; do not certify a standard text control yet.
+- [x] **M2A-02** Integrate font discovery/owned fixtures, fallback, shaping, line layout and caches; define font/DPI invalidation and glyph lifetime rules.
+- [x] **M2A-03** Implement grapheme/word boundaries, bidi-aware logical/visual caret policy and shaped-run hit mapping; test mixed scripts, ligatures and emoji.
+- [x] **M2A-04** Define versioned SingleLineText v1 and plain-multiline behavior matrices with mandatory/optional/not-applicable cases and independent expected edits.
+- [x] **M2A-05** Implement insertion, selected-range replacement, Backspace/Delete, word deletion and empty/boundary/length-limit behavior.
+- [x] **M2A-06** Implement caret movement, Home/End/word movement, selection anchor/direction, Shift extension, select-all and pointer/word selection.
+- [x] **M2A-07** Implement field undo/redo grouping for typing, paste and composition; define coordination with application document undo scopes.
+- [x] **M2A-08** Implement revision-aware controlled values, validation and external replacement policies without stale echoes overwriting selection/composition.
+- [x] **M2A-09** Implement read-only/disabled/placeholder behavior, caret blink through the test clock, horizontal scrolling and drag-selection caret reveal.
+- [x] **M2A-10** Integrate clipboard copy/cut/paste and single-line newline policy; use deterministic service fixtures and actual native clipboard checks.
+- [x] **M2A-11** Integrate IME preedit/commit/cancel, composition replacement and candidate-position reporting; defer rendered-position certification to Phases 5/8.
+- [x] **M2A-12** Extend plain multiline behavior with line navigation, vertical movement, wrapping, newline/Tab policy and scrolling.
+- [x] **M2A-13** Build reusable profile adapters/reports; property-test valid selections and undo/edit sequences alongside explicit behavior fixtures.
+- [x] **M2A-14** Pass headless editing/profile tests and record native/render cases still uncovered; do not certify a standard text control yet.
+
+M2A evidence: [shared text implementation and verification](evidence/m2a-text-editing.md). Checked items record implementation and the executed layer-specific evidence. The stricter fresh-station clipboard replay, native IME, rendered controls and Linux/macOS execution remain uncovered; no standard-control certification is claimed.
 
 ## 4. Implement the wgpu 2D renderer — M3
 

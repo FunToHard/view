@@ -7,8 +7,12 @@
 | Harness alone | `cargo test -p view-testing --no-default-features --locked` | Controlled driver over public core |
 | Headless example | `cargo run -p view-testing --example headless --locked` | Actions, region state and idle behavior |
 | Facade minimal | `cargo check -p view --no-default-features --locked` | No default feature dependency leak |
-| Facade all current features | `cargo check -p view --all-features --locked` | Includes optional backend-independent text contracts |
-| Text alone | `cargo test -p view-text --no-default-features --locked` | Index/revision/layout/session foundations without a shaping backend |
+| Facade all current features | `cargo check -p view --all-features --locked` | Includes optional editor and cosmic-text shaping |
+| Text alone | `cargo test -p view-text --no-default-features --locked` | Shared editor without shaping |
+| Text shaping | `cargo test -p view-text --all-features --locked` | Owned-font shaping, wrapping, geometry and cache tests |
+| Platform text | `cargo test -p view-platform --features text --locked` | IME event adapter without physical input |
+| Windows isolated clipboard | `cargo run -p view-platform --features clipboard-test --example clipboard_isolated --locked -- --isolated` | Real clipboard round trips in a private noninteractive window station |
+| CPU plus native clipboard | `pwsh -File scripts/verify.ps1 -NativeClipboard` | Explicit opt-in; fails if a fresh noninteractive station cannot be created |
 | Independent text consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features text --locked --target-dir target/consumer` | Exercises the facade text feature outside workspace feature unification |
 | Qualification workspace | `pwsh -File scripts/verify.ps1` | CPU APIs/tests plus Windows probe only on Windows |
 | Independent consumer | `cargo check --manifest-path tests/compatibility/facade-consumer/Cargo.toml --locked --target-dir target/consumer` | Separate workspace/lockfile; no dependency unification with development probes |
@@ -17,8 +21,9 @@
 
 The independent consumer deliberately disables facade defaults. Its default graph
 contains only consumer, view and view-core; the consumer's optional `harness`
-feature adds view-testing; `text` enables the facade's view-text boundary. These profiles have zero registry dependencies (check
-using Cargo tree). The default binary executes a typed action through the facade;
+feature adds view-testing; those profiles have zero registry dependencies.
+`text` adds view-text and unicode-segmentation. `text-shaping` additionally enables
+cosmic-text, tested through its separate consumer profile. The default binary executes a typed action through the facade;
 the harness profile tests a controlled input/commit through public interfaces.
 None of these profiles certifies native UI behavior. Core/testing remain featureless;
 the facade's `text` feature is opt-in.
@@ -26,8 +31,9 @@ the facade's `text` feature is opt-in.
 All packages remain unpublished. Platform and dependency probes are development
 tools, not supported application APIs. Core has zero third-party dependencies and
 no feature flags; the harness depends only on core, and the facade adds view-text
-only when requested. view-text depends only on core. Graphics/text-shaping/accessibility
-dependencies remain in qualification probes; native window dependencies belong to
+only when requested. view-text depends on core and unicode-segmentation, with
+cosmic-text behind the shaping feature. GPU/accessibility dependencies remain in
+qualification probes; native window dependencies belong to
 view-platform as well as platform probes. Future platform/render/control features get separate
 minimal/default/selected-full consumer cases when implemented; no placeholder
 features or empty production crates are added to simulate coverage.

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Gpu, [ValidateSet('dx12','vulkan','metal')][string]$Backend = 'dx12')
+param([switch]$Gpu, [ValidateSet('dx12','vulkan','metal')][string]$Backend = 'dx12', [switch]$NativeClipboard)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repoRoot
@@ -7,6 +7,7 @@ $exitStatus = 0
 $priorIncremental = $env:CARGO_INCREMENTAL
 $env:CARGO_INCREMENTAL = '0'
 try {
+    if ($NativeClipboard -and -not $IsWindows) { throw 'Native clipboard verification currently requires Windows.' }
     New-Item -ItemType Directory -Force target/verification | Out-Null
     Start-Transcript -Path target/verification/verify.log -Force | Out-Null
     function Invoke-Cargo {
@@ -26,6 +27,7 @@ try {
         imageVersion = $env:ImageVersion
         gpuRequested = [bool]$Gpu
         nativeInputRequested = $false
+        nativeClipboardRequested = [bool]$NativeClipboard
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content target/verification/environment.json
     & "$PSScriptRoot/check-fixtures.ps1"
@@ -38,11 +40,15 @@ try {
     Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-text','--no-default-features','--locked')
+    Invoke-Cargo @('clippy','-p','view-text','-p','view-platform','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-text','-p','view-platform','--all-features','--locked')
+    Invoke-Cargo @('doc','-p','view-text','-p','view-platform','--all-features','--no-deps','--locked')
     Invoke-Cargo @('test','-p','view-platform','--locked')
     Invoke-Cargo @('run','-p','view-testing','--example','headless','--locked')
     # A hidden window still requires a native desktop/display server.
     if ($IsWindows) { Invoke-Cargo @('run','-p','view-platform','--example','inspectable_app','--locked','--','--run-hidden') }
     if ($IsWindows) {
+        if ($NativeClipboard) { Invoke-Cargo @('run','-p','view-platform','--features','clipboard-test','--example','clipboard_isolated','--locked','--','--isolated') }
         foreach ($stage in @('ready','idle','event')) {
             Invoke-Cargo @('run','-p','view-platform','--example','callback_failure','--locked','--','--run-hidden',$stage)
         }
@@ -54,6 +60,8 @@ try {
     Invoke-Cargo @('run','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','harness','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text-shaping','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--all-features','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('fmt','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--','--check')
     $hostTriple = ($compiler | Where-Object { $_ -like 'host: *' }) -replace '^host: ', ''
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple

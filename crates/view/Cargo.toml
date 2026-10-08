@@ -16,6 +16,7 @@ view-text = { workspace = true, optional = true }
 
 [features]
 text = ["dep:view-text"]
+text-shaping = ["text", "view-text/shaping"]
 
 [lints]
 workspace = true

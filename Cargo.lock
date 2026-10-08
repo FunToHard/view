@@ -2073,6 +2073,7 @@ name = "view-platform"
 version = "0.1.0"
 dependencies = [
  "view-core",
+ "view-text",
  "windows",
  "winit",
 ]
@@ -2088,6 +2089,8 @@ dependencies = [
 name = "view-text"
 version = "0.1.0"
 dependencies = [
+ "cosmic-text",
+ "unicode-segmentation",
  "view-core",
 ]
 

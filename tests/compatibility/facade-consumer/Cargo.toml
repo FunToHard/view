@@ -15,3 +15,4 @@ view-testing = { path = "../../../crates/view-testing", version = "0.1.0", defau
 [features]
 harness = ["dep:view-testing"]
 text = ["view/text"]
+text-shaping = ["text", "view/text-shaping"]

@@ -13,7 +13,16 @@ workspace = true
 
 [dependencies]
 view-core.workspace = true
+view-text = { workspace = true, optional = true }
 winit = { workspace = true }
+
+[features]
+text = ["dep:view-text", "windows/Win32_System_DataExchange", "windows/Win32_System_Memory"]
+clipboard-test = ["text", "windows/Win32_System_StationsAndDesktops", "windows/Win32_Security", "windows/Win32_Graphics_Gdi"]
+
+[[example]]
+name = "clipboard_isolated"
+required-features = ["clipboard-test"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 winit = { workspace = true, features = ["x11", "wayland", "wayland-dlopen"] }

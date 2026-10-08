@@ -10,6 +10,11 @@ publish = false
 
 [dependencies]
 view-core.workspace = true
+unicode-segmentation.workspace = true
+cosmic-text = { workspace = true, optional = true }
+
+[features]
+shaping = ["dep:cosmic-text"]
 
 [lints]
 workspace = true

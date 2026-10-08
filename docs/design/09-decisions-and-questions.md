@@ -203,6 +203,18 @@ from headless checks.
 
 ### Revision procedure
 
+M2A implementation refinement, 2026-10-08: P-21/Q-20 uses grapheme-safe committed
+editing, scalar-indexed transient preedit, owner-local revision preconditions and
+explicit logical/visual caret commands. External replacement clears field history;
+application undo retains document authority. Qualified cosmic-text shaping is
+optional, owns font lifetimes, and uses a bounded request cache. The public facade
+keeps editing/shaping opt-in; core remains backend-free. Unicode segmentation and
+the already qualified cosmic-text family are reused with no new root registry
+package. OFL-owned fixtures remove host-font dependence. Windows clipboard testing
+uses a private noninteractive station; native rendered IME/control certification
+remains later work. Reason and acceptance: [M2A evidence](../plan/evidence/m2a-text-editing.md)
+and [contracts](../guides/text-editing.md).
+
 M2A-01 foundation refinement, 2026-10-08: P-21/Q-20 now has a `view-text` boundary
 and optional facade `text` feature. Public contracts use UTF-8 scalar-boundary byte
 indices with checked UTF-16 conversion, owner-local text revisions, directional
