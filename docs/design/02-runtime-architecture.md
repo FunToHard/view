@@ -58,6 +58,38 @@ All share focus, capture, clipping, coordinate conversion, and semantic contract
 
 Proposal: an arena addressed by index plus generation, with separate stable application keys. A node handle is not a persistent document identifier, test selector, or cross-process address.
 
+M1A-01 foundation refinement: `view-core` defines `ArenaId`, `ArenaHandle`,
+`Generation`, `WindowId`, `Revision` and `CoreError`, re-exported by `view`.
+Handles contain an arena namespace, a u32 slot index and a nonzero u64 generation.
+Arena IDs are nonzero u64 values that the owning runtime must issue uniquely and
+never reuse within its session. This prevents equal slot/generation pairs in
+different arenas from comparing equal. Cross-session use is unsupported.
+`WindowId` is a distinct wrapper for handles issued by the window registry,
+independent of native window types. Raw constructors support reconstruction but
+do not establish liveness or authorize access. The implemented arena checks
+namespace, occupancy and generation on every operation (M1A-02). `Arena::new`
+issues process-unique namespaces using a checked atomic counter; the only global
+state is identity issuance, never an application model or service registry.
+
+Generations begin at one and advance with checked arithmetic; exhausted slots
+must be retired. Revisions begin at zero, advance with checked arithmetic and
+are comparable only within their owner's stream. Overflow returns a structured
+error rather than wrapping or saturating. Values alone do not implement commit
+publication or presentation ordering. The M1A runtime now publishes structural
+commit snapshots and validates adapter presentation acknowledgements (M1A-08),
+without claiming layout, semantic or native display observations. Core uses only
+std and forbids unsafe code. `view-testing` now supplies its first controlled
+clock/input/service driver (M1A-11); runtime behavior tests also live with core.
+
+The implemented owner-thread API and restrictions are documented in the
+[headless runtime guide](../guides/headless-runtime.md). Component state Rust
+types identify component kinds; parent/key/type/structural-owner matches retain
+local state and replace handlers. Distinct component kinds use distinct state
+newtypes. BUILD invalidation schedules the nearest registered region; explicit
+invalidation covers other model dependents. Layout propagation is conservatively
+window-wide pending layout dependency boundaries in M1B. These choices favor a
+reviewable first contract over unmeasured optimizations.
+
 Reconciliation matches parent scope, explicit key, and component type. Changing type resets incompatible local state. Duplicate sibling keys are diagnostic errors. Reordered lists use document/item keys rather than positions.
 
 Missing declarations remove nodes only when the owning region actually runs. Skipping a clean region preserves it. Hidden, clipped, suspended, and unmounted are distinct lifecycle states. Resource cleanup and cancellation follow unmount; visibility alone does not erase editing state.

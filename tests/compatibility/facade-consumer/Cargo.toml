@@ -10,3 +10,7 @@ publish = false
 
 [dependencies]
 view = { path = "../../../crates/view", version = "0.1.0", default-features = false }
+view-testing = { path = "../../../crates/view-testing", version = "0.1.0", default-features = false, optional = true }
+
+[features]
+harness = ["dep:view-testing"]

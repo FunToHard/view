@@ -147,6 +147,61 @@ Changes to this baseline now require a short decision amendment with the reason,
 
 ## How to refine this set
 
+### M1A-01 implementation refinement — 2026-10-08
+
+P-01/P-03/Q-15 now have foundation value types in dependency-free `view-core`.
+Arena-qualified generational handles distinguish slots across arenas; a distinct
+window wrapper prevents accidental interchange with generic handles. Raw
+construction is explicitly unchecked, and future arenas remain responsible for
+liveness checks. Nonzero generations and checked u64 advancement avoid aliasing
+old identities/revisions on overflow; exhausted slots must be retired. Arena
+namespaces are session-local, issued without reuse by their eventual owner.
+
+The facade re-exports these contracts without platform/backend/tool dependencies.
+No third-party dependency was added: the first-party MIT OR Apache-2.0 core is
+maintained in this workspace, uses std only and has no target-specific branches.
+`view-testing` is intentionally staged with its first harness implementation
+(M1A-11), rather than introduced empty. This refines the existing staged-crate
+rule and does not close RUN-01/RUN-02/RUN-05. Contract and acceptance evidence:
+[runtime design](02-runtime-architecture.md#identity-and-lifetime) and
+[foundation verification](../plan/evidence/m1a-01-foundations.md).
+
+### M1A runtime implementation refinement — 2026-10-08
+
+P-01/P-03/P-07/P-09 and Q-03/Q-15 now have a headless implementation. Runtime
+state/callbacks stay on their owner thread through a !Send/!Sync boundary; model
+access is borrowed only during dispatch. A checked process-local atomic issues
+unique arena namespaces. This supersedes the unimplemented issuer in M1A-01
+without introducing global application state. Arena exhaustion retires identities.
+
+Direct-child authority is explicit (retained, declarative or immediate). Keys and
+Rust state types identify compatible components; structure changes also remount.
+Compatible descriptions replace handlers but retain local state and descendants.
+Root/window teardown revokes owned work. Tokens carry both owner and request
+generations; successful enqueue does not replace dispatch-time validation.
+
+Required actions return ownership on queue saturation. Replaceable previews use
+an explicit key, return the replaced action and take the newest sequence position.
+Region responses are FIFO and consumed before a builder call; bounded response
+buffers report backpressure rather than dropping input. Suspended regions preserve
+their state/responses. There is no promise of rollback for application effects or
+recovery from panicking callbacks. Duplicate description keys are rejected before
+tree mutation; a failed build leaves the previous published snapshot visible.
+
+Layout invalidation conservatively covers the whole window. Structural commits
+remain distinct from adapter-acknowledged presentation and from independent
+viewport requests. The harness uses explicit virtual time and FIFO fixture
+services; it adds only a first-party core dependency. No registry dependency,
+executor, native input or GPU requirement is added to either production package.
+
+Reason: establish testable lifecycle/effect boundaries before native geometry,
+semantics and rendering. Contracts and acceptance evidence are in the
+[headless guide](../guides/headless-runtime.md) and
+[M1A runtime report](../plan/evidence/m1a-runtime.md). Performance, native behavior
+and new Linux/macOS execution are not inferred from Windows CPU checks.
+
+### Revision procedure
+
 1. Capture feedback as an existing requirement/decision change or a new numbered entry.
 2. Record the decision, reason, alternatives, and affected contracts.
 3. Update all affected documents in the same revision.

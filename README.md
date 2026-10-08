@@ -6,7 +6,7 @@ A Rust framework being designed for native desktop applications that combine ret
 
 The intended applications include game-engine editors, IDEs, image editors, and other demanding creative and development tools. Native platform behavior, extensibility, automation, and measurable performance are design requirements.
 
-**Status: M0 qualification; design baseline 0.4.** The workspace contains an unpublished, dependency-free `view` facade plus development-only platform and graphics/text compatibility probes. Rust 1.98.1, contributor guidance, MIT OR Apache-2.0 licensing and GitHub Actions workflows are configured. There is no runtime/UI API or performance certification yet. Windows 11 x64 remains the first product target; actual coverage is recorded in the implementation checklist.
+**Status: M1A headless runtime; design baseline 0.4.** The unpublished `view` facade exposes dependency-free `view-core` ownership, keyed reconciliation, typed actions, cancellation, demand scheduling and committed structural snapshots. `view-testing` provides controlled time/input and service fixtures. Native input, layout, semantics, controls and rendering remain later milestones. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. New runtime tests have local Windows evidence; Linux/macOS execution and M0 infrastructure gates remain open. Actual coverage is recorded in the implementation checklist.
 
 Start with the [design index](docs/design/README.md). The first delivery target is Windows; Linux and macOS participate in CI testing with explicitly recorded coverage limitations.
 
@@ -15,6 +15,10 @@ The [project plan](docs/plan/README.md) defines the executable milestones. The [
 Use the [ordered implementation checklist](docs/plan/implementation-checklist.md)
 to track the complete developer preview from bootstrap through release validation.
 Completed setup, remaining work and deferred expansions are recorded separately.
+
+For the implemented headless API, start with the
+[runtime guide](docs/guides/headless-runtime.md) and run
+`cargo run -p view-testing --example headless --locked`.
 
 ## Development
 

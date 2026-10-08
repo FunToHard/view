@@ -2059,6 +2059,20 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "view"
 version = "0.1.0"
+dependencies = [
+ "view-core",
+]
+
+[[package]]
+name = "view-core"
+version = "0.1.0"
+
+[[package]]
+name = "view-testing"
+version = "0.1.0"
+dependencies = [
+ "view-core",
+]
 
 [[package]]
 name = "walkdir"

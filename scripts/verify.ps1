@@ -35,10 +35,15 @@ try {
     Invoke-Cargo @('clippy','--workspace','--all-targets','--locked','--','-D','warnings')
     Invoke-Cargo @('test','--workspace','--locked')
     Invoke-Cargo @('doc','--workspace','--no-deps','--locked')
+    Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
+    Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
+    Invoke-Cargo @('run','-p','view-testing','--example','headless','--locked')
     Invoke-Cargo @('check','-p','view','--no-default-features','--locked')
     Invoke-Cargo @('check','-p','view','--all-features','--locked')
     # Independent workspace/lockfile, unaffected by root feature unification.
     Invoke-Cargo @('check','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('run','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','harness','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('fmt','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--','--check')
     $hostTriple = ($compiler | Where-Object { $_ -like 'host: *' }) -replace '^host: ', ''
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple

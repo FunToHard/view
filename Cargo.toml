@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/view",
+    "crates/view-core",
+    "crates/view-testing",
     "crates/platform-probe",
     "tools/dependency-probe",
 ]
@@ -21,6 +23,8 @@ unsafe_op_in_unsafe_fn = "deny"
 undocumented_unsafe_blocks = "deny"
 
 [workspace.dependencies]
+view-core = { path = "crates/view-core", version = "0.1.0" }
+view-testing = { path = "crates/view-testing", version = "0.1.0" }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 windows = { version = "0.62.2", default-features = false }
 wgpu = { version = "30.0.0", default-features = false, features = ["std", "dx12", "metal", "vulkan", "wgsl"] }
