@@ -2061,6 +2061,7 @@ name = "view"
 version = "0.1.0"
 dependencies = [
  "view-core",
+ "view-text",
 ]
 
 [[package]]
@@ -2078,6 +2079,13 @@ dependencies = [
 
 [[package]]
 name = "view-testing"
+version = "0.1.0"
+dependencies = [
+ "view-core",
+]
+
+[[package]]
+name = "view-text"
 version = "0.1.0"
 dependencies = [
  "view-core",

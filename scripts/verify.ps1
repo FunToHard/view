@@ -37,6 +37,7 @@ try {
     Invoke-Cargo @('doc','--workspace','--no-deps','--locked')
     Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
+    Invoke-Cargo @('test','-p','view-text','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-platform','--locked')
     Invoke-Cargo @('run','-p','view-testing','--example','headless','--locked')
     # A hidden window still requires a native desktop/display server.
@@ -52,6 +53,7 @@ try {
     Invoke-Cargo @('check','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('run','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','harness','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('fmt','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--','--check')
     $hostTriple = ($compiler | Where-Object { $_ -like 'host: *' }) -replace '^host: ', ''
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple

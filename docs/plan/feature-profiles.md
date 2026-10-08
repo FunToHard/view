@@ -7,7 +7,9 @@
 | Harness alone | `cargo test -p view-testing --no-default-features --locked` | Controlled driver over public core |
 | Headless example | `cargo run -p view-testing --example headless --locked` | Actions, region state and idle behavior |
 | Facade minimal | `cargo check -p view --no-default-features --locked` | No default feature dependency leak |
-| Facade all current features | `cargo check -p view --all-features --locked` | Currently identical: no facade features exist yet |
+| Facade all current features | `cargo check -p view --all-features --locked` | Includes optional backend-independent text contracts |
+| Text alone | `cargo test -p view-text --no-default-features --locked` | Index/revision/layout/session foundations without a shaping backend |
+| Independent text consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features text --locked --target-dir target/consumer` | Exercises the facade text feature outside workspace feature unification |
 | Qualification workspace | `pwsh -File scripts/verify.ps1` | CPU APIs/tests plus Windows probe only on Windows |
 | Independent consumer | `cargo check --manifest-path tests/compatibility/facade-consumer/Cargo.toml --locked --target-dir target/consumer` | Separate workspace/lockfile; no dependency unification with development probes |
 | Independent harness consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features harness --locked --target-dir target/consumer` | Explicit optional harness shares facade runtime types |
@@ -15,16 +17,18 @@
 
 The independent consumer deliberately disables facade defaults. Its default graph
 contains only consumer, view and view-core; the consumer's optional `harness`
-feature adds view-testing. Both profiles have zero registry dependencies (check
+feature adds view-testing; `text` enables the facade's view-text boundary. These profiles have zero registry dependencies (check
 using Cargo tree). The default binary executes a typed action through the facade;
 the harness profile tests a controlled input/commit through public interfaces.
-Neither profile certifies native UI behavior. There are no facade/core/testing
-feature flags yet; the feature belongs only to the compatibility consumer.
+None of these profiles certifies native UI behavior. Core/testing remain featureless;
+the facade's `text` feature is opt-in.
 
 All packages remain unpublished. Platform and dependency probes are development
 tools, not supported application APIs. Core has zero third-party dependencies and
-no feature flags; the facade and harness each depend only on core. wgpu/text/accessibility dependencies belong
-to those probes only. Future platform/render/control features get separate
+no feature flags; the harness depends only on core, and the facade adds view-text
+only when requested. view-text depends only on core. Graphics/text-shaping/accessibility
+dependencies remain in qualification probes; native window dependencies belong to
+view-platform as well as platform probes. Future platform/render/control features get separate
 minimal/default/selected-full consumer cases when implemented; no placeholder
 features or empty production crates are added to simulate coverage.
 

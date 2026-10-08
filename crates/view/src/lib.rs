@@ -10,6 +10,10 @@
 
 #![forbid(unsafe_code)]
 
+/// Optional backend-independent text foundations (not a complete text control).
+#[cfg(feature = "text")]
+pub use view_text as text;
+
 pub use view_core::{
     Alignment, Axis, Constraints, CrossAxisAlignment, FlexItem, FlexLayout, LayoutCache,
     MainAxisAlignment, PaddingLayout, StackLayout,

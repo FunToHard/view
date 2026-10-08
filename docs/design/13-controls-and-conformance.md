@@ -2,6 +2,18 @@
 
 Status: revision 0.4 selected P-20/P-21 baseline. No controls or test harness are implemented yet.
 
+M2A-01 update (2026-10-08): `view-text` now supplies backend-independent text
+snapshots, checked UTF-8/UTF-16 indexing, value revisions and layout/editor traits.
+Indices are scalar-boundary byte offsets, not a claim of legal grapheme carets.
+Selection preserves anchor/focus direction. UTF-16 offsets inside surrogate pairs
+are rejected. Editing requests are session-addressed and carry a base value revision;
+revision comparison across text owners is invalid. Composition remains separate
+from committed text. Immutable layouts retain their source/resources and use local
+logical coordinates; font collection revision, DPI and all shaping inputs affect
+cache validity. A GPU atlas has a separate renderer lifetime. No shaping backend,
+editing engine or standard text control is certified by this first slice. See
+[foundation evidence](../plan/evidence/m2a-01-text-foundations.md).
+
 ## Publish controls as ordinary Rust crates
 
 A developer should be able to publish a Markdown previewer, code editor, timeline, chart, or inspector as a normal Cargo library. Consumers depend on it and compose its exported View/component using the same mechanisms as first-party controls. This is compile-time source integration; it does not require a runtime plugin loader. Cargo already supplies the package distribution workflow. [Cargo publishing](https://doc.rust-lang.org/cargo/reference/publishing.html)

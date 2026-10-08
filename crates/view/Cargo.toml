@@ -12,6 +12,10 @@ publish = false
 
 [dependencies]
 view-core.workspace = true
+view-text = { workspace = true, optional = true }
+
+[features]
+text = ["dep:view-text"]
 
 [lints]
 workspace = true

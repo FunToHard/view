@@ -203,6 +203,17 @@ from headless checks.
 
 ### Revision procedure
 
+M2A-01 foundation refinement, 2026-10-08: P-21/Q-20 now has a `view-text` boundary
+and optional facade `text` feature. Public contracts use UTF-8 scalar-boundary byte
+indices with checked UTF-16 conversion, owner-local text revisions, directional
+selection and separate transient composition. Layout/session traits expose no
+backend types. Font/DPI inputs and retained source lifetimes are explicit so later
+cosmic-text integration cannot leak cache or GPU lifetime assumptions into controls.
+This first-party MIT OR Apache-2.0 crate depends only on std and view-core, adds no
+registry/transitive backend cost, and has no platform-specific branches. Reason:
+settle the shared text boundary before shaping and editor behavior. Acceptance:
+[M2A-01 evidence](../plan/evidence/m2a-01-text-foundations.md).
+
 M1B review corrections, 2026-10-08: Q-15 geometry composition now explicitly
 applies child-local transforms before ancestors and includes arranged origins
 and scroll displacement. P-03 observations publish semantic state at commit.

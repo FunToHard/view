@@ -133,7 +133,7 @@ Native frame/IME/physical-input certification is not implied by hidden smoke.
 Sources: [control profiles](../design/13-controls-and-conformance.md).
 Capabilities: C-16, C-42; C-04 text measurement. Acceptance: headless T-29–T-31, T-01 editing extension.
 
-- [ ] **M2A-01** Introduce view-text; define text indexing, revisions, shaping/measurement and editor-session interfaces before exposing backend types.
+- [x] **M2A-01** Introduce view-text; define text indexing, revisions, shaping/measurement and editor-session interfaces before exposing backend types. [Windows local verification](evidence/m2a-01-text-foundations.md); shaping/editing implementations remain in later items.
 - [ ] **M2A-02** Integrate font discovery/owned fixtures, fallback, shaping, line layout and caches; define font/DPI invalidation and glyph lifetime rules.
 - [ ] **M2A-03** Implement grapheme/word boundaries, bidi-aware logical/visual caret policy and shaped-run hit mapping; test mixed scripts, ligatures and emoji.
 - [ ] **M2A-04** Define versioned SingleLineText v1 and plain-multiline behavior matrices with mandatory/optional/not-applicable cases and independent expected edits.
