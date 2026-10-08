@@ -148,7 +148,7 @@ Capabilities: C-16, C-42; C-04 text measurement. Acceptance: headless T-29–T-3
 - [x] **M2A-13** Build reusable profile adapters/reports; property-test valid selections and undo/edit sequences alongside explicit behavior fixtures.
 - [x] **M2A-14** Pass headless editing/profile tests and record native/render cases still uncovered; do not certify a standard text control yet.
 
-M2A evidence: [shared text implementation and verification](evidence/m2a-text-editing.md). Checked items record implementation and the executed layer-specific evidence. The stricter fresh-station clipboard replay, native IME, rendered controls and Linux/macOS execution remain uncovered; no standard-control certification is claimed.
+M2A evidence: [shared text implementation and verification](evidence/m2a-text-editing.md), including passing Windows/Linux/macOS CPU CI. Checked items record implementation and the executed layer-specific evidence. The stricter fresh-station clipboard replay, native IME and rendered controls remain uncovered; no standard-control certification is claimed.
 
 ## 4. Implement the wgpu 2D renderer — M3
 

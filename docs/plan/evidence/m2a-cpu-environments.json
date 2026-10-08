@@ -1,0 +1,67 @@
+{
+  "runUrl": "https://github.com/FunToHard/view/actions/runs/37773960528",
+  "commit": "a927a9e4522b74267f7a73d7cac20a967a64c344",
+  "conclusion": "success",
+  "environments": [
+    {
+      "timestampUtc": "2026-10-08T12:01:45.2709798Z",
+      "os": "Microsoft Windows 10.0.26100",
+      "architecture": "X64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: x86_64-pc-windows-msvc",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "Windows",
+      "imageOS": "win25-vs2026",
+      "imageVersion": "20260925.250.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false,
+      "nativeClipboardRequested": false
+    },
+    {
+      "timestampUtc": "2026-10-08T12:01:42.8384035Z",
+      "os": "Ubuntu 24.04.5 LTS",
+      "architecture": "X64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: x86_64-unknown-linux-gnu",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "Linux",
+      "imageOS": "ubuntu24",
+      "imageVersion": "20261004.327.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false,
+      "nativeClipboardRequested": false
+    },
+    {
+      "timestampUtc": "2026-10-08T12:01:42.273961Z",
+      "os": "macOS 15.7.9",
+      "architecture": "Arm64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: aarch64-apple-darwin",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "macOS",
+      "imageOS": "macos15",
+      "imageVersion": "20260907.0337.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false,
+      "nativeClipboardRequested": false
+    }
+  ]
+}

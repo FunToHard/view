@@ -75,10 +75,21 @@ preedit cursor offsets to display grapheme boundaries by affinity. These final
 boundary cases have explicit shaping regression tests. Raw local output is in
 `target/verification/m2a-final.log` (ignored generated evidence).
 
-## Uncovered acceptance
+## Three-platform CI and merge
+
+[CPU qualification run 37773960528](https://github.com/FunToHard/view/actions/runs/37773960528)
+passed on Windows 2025, Ubuntu 24.04 and macOS 15 for
+`a927a9e4522b74267f7a73d7cac20a967a64c344`, subsequently fast-forwarded to `main`.
+All three jobs executed the full CPU script, including optional shaping/platform
+text suites and independent consumers. Windows also ran hidden native shell and
+callback-error checks. The opt-in fresh-station clipboard fixture was not requested.
+[Actual CI environments](m2a-cpu-environments.json) preserve compiler/OS/architecture
+and execution flags. This supersedes the earlier local-only platform coverage.
+
+## Remaining acceptance
 
 M0 runner/session gates remain unchanged. No rendered glyph output, native Japanese
 IME keyboard/candidate-position sequence, physical drag-selection, native
 accessibility or full control lifecycle/shortcut conformance is claimed. These
-need M3/M5 and control integration. Linux/macOS execution of this M2A revision
-has not run; prior M1 CI does not cover these changes.
+need M3/M5 and control integration. Linux/macOS CPU execution passed as recorded
+above; native-window/clipboard/IME and GPU parity are not implied.
