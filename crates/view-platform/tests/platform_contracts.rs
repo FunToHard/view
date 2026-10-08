@@ -4,9 +4,11 @@ use view_core::{
     ArenaHandle, ArenaId, Generation, LogicalPoint, LogicalSize, PhysicalSize, PointerButton,
     PointerEvent, PointerPhase, ScaleFactor, WindowId,
 };
+#[cfg(windows)]
+use view_platform::ComGuard;
 use view_platform::{
-    ComGuard, DpiState, ImeEvent, InputStateTracker, PlatformError, PlatformShell,
-    PlatformWindowEvent, WindowLifecycle, WindowStateSnapshot, translate_window_event,
+    DpiState, ImeEvent, InputStateTracker, PlatformError, PlatformShell, PlatformWindowEvent,
+    WindowLifecycle, WindowStateSnapshot, translate_window_event,
 };
 use winit::dpi::{PhysicalPosition, PhysicalSize as WinitPhysicalSize};
 use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
