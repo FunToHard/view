@@ -14,6 +14,10 @@
 #[cfg(feature = "text")]
 pub use view_text as text;
 
+/// Optional wgpu 30 renderer. Core-only consumers do not acquire GPU dependencies.
+#[cfg(feature = "wgpu")]
+pub use view_wgpu as render;
+
 pub use view_core::{
     Alignment, Axis, Constraints, CrossAxisAlignment, FlexItem, FlexLayout, LayoutCache,
     MainAxisAlignment, PaddingLayout, StackLayout,

@@ -203,6 +203,26 @@ from headless checks.
 
 ### Revision procedure
 
+M3A implementation refinement, 2026-10-08: P-04/P-05/P-07 and Q-06/Q-08/Q-14
+now use optional `view-wgpu`, keeping core backend-independent. The initial paint
+profile is single-sample RGBA/BGRA sRGB with linear premultiplied blending,
+alpha-correct image filtering, rectangular committed-window clips, lyon geometry,
+and isolated opacity layers. Text shares the exact cosmic buffer used by editing;
+font collection identity scopes glyph atlas epochs. Whole-epoch eviction and
+immutable GPU buffers avoid live slot reassignment; submission callbacks retain
+bounded frame leases. Glyph reservations conservatively use the device atlas
+limit rather than invent residency measurements. Captures copy in the paint
+submission, preserving the captured revision across later target reuse.
+
+Reason: establish executable 2D/provider lifetime contracts before controls and
+3D proofs. Providers have explicit direct/offscreen attachment profiles, pass
+dependency validation and host submission acknowledgement; errors/recreation are
+observable. Host device callbacks remain a deliberate ownership choice. No new
+registry family is introduced; the qualified stack is now a production optional
+adapter. API/limitations: [rendering guide](../guides/rendering.md). Acceptance and
+platform gaps: [M3A evidence](../plan/evidence/m3a-renderer.md). M3A-14 remains open
+without Linux/macOS graphics execution; neither M0 infrastructure nor M3B is closed.
+
 M2A implementation refinement, 2026-10-08: P-21/Q-20 uses grapheme-safe committed
 editing, scalar-indexed transient preedit, owner-local revision preconditions and
 explicit logical/visual caret commands. External replacement clears field history;

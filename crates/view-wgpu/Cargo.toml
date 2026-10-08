@@ -1,0 +1,26 @@
+[package]
+name = "view-wgpu"
+description = "Explicit SDR 2D rendering and GPU contribution contracts for view."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-core.workspace = true
+view-text = { workspace = true, features = ["shaping"] }
+wgpu.workspace = true
+glyphon.workspace = true
+lyon.workspace = true
+bytemuck.workspace = true
+
+[dev-dependencies]
+winit.workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+winit = { workspace = true, features = ["x11", "wayland", "wayland-dlopen"] }
+
+[lints]
+workspace = true

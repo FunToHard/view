@@ -2,6 +2,12 @@
 
 Status: selected rendering baseline P-04/P-05. First-class 2D/3D support is requirement R-07. Revision: 0.4.
 
+M3A implementation: [rendering guide](../guides/rendering.md) defines the compiled
+2D/provider API and initial supported profile. [Evidence](../plan/evidence/m3a-renderer.md)
+separates local Windows GPU/native surface execution from open platform coverage.
+The broader 3D, masks, native interoperability and performance scope below remains
+governed by its later checklist items; conceptual sketches are not API signatures.
+
 ## Rendering roles
 
 | Role | Responsibilities | Can be replaced/hosted? |

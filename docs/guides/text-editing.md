@@ -105,3 +105,9 @@ caret, control command/lifecycle wiring and native accessibility remain uncovere
 These reports cannot certify a complete standard text control.
 
 See [M2A evidence](../plan/evidence/m2a-text-editing.md) for executed verification.
+
+M3A now adds [rendering](rendering.md) of the retained shaped buffer and ordered
+selection/preedit/caret visuals. This closes specific offscreen drawing checks,
+not complete TextInput/TextArea or native IME conformance. Shaped layouts retain
+their font collection across reload; `with_raster_source` is an adapter bridge.
+Its mutable font system is for raster-cache access, not font database mutation.

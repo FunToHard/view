@@ -1,6 +1,9 @@
 use crate::*;
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, fontdb};
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 use unicode_segmentation::UnicodeSegmentation;
 use view_core::{LogicalPoint, LogicalRect, LogicalSize, Revision};
 
@@ -19,6 +22,8 @@ struct Cell {
 /// does not invalidate an existing layout. No glyph atlas handle is exposed.
 #[derive(Clone)]
 pub struct ShapedText {
+    buffer: Buffer,
+    raster_fonts: Arc<Mutex<FontSystem>>,
     text: TextSnapshot,
     size: LogicalSize,
     stops: Vec<Stop>,
@@ -27,6 +32,17 @@ pub struct ShapedText {
     missing_glyphs: usize,
 }
 impl ShapedText {
+    /// Whether glyph font IDs refer to the same retained collection. Rendering
+    /// adapters must not share a glyph atlas across unrelated font-ID namespaces.
+    pub fn shares_font_collection(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.raster_fonts, &other.raster_fonts)
+    }
+    /// Adapter bridge to the exact shaping buffer and retained font collection.
+    /// Font reload replaces the backend collection; existing layouts remain valid.
+    pub fn with_raster_source<T>(&self, render: impl FnOnce(&Buffer, &mut FontSystem) -> T) -> T {
+        let mut fonts = self.raster_fonts.lock().unwrap_or_else(|e| e.into_inner());
+        render(&self.buffer, &mut fonts)
+    }
     pub fn font_count(&self) -> usize {
         self.fonts.len()
     }
@@ -120,7 +136,7 @@ impl NavigableLayout for ShapedText {
 /// consumers are independently owned. Reload fonts to invalidate fallback caches;
 /// request DPI/font revision changes also invalidate cached shaping results.
 pub struct CosmicBackend {
-    fonts: FontSystem,
+    fonts: Arc<Mutex<FontSystem>>,
     cache: VecDeque<(LayoutRequest, ShapedText)>,
     capacity: usize,
     revision: Revision,
@@ -129,7 +145,7 @@ pub struct CosmicBackend {
 impl CosmicBackend {
     pub fn system(capacity: usize) -> Self {
         Self {
-            fonts: FontSystem::new(),
+            fonts: Arc::new(Mutex::new(FontSystem::new())),
             cache: VecDeque::new(),
             capacity,
             revision: Revision::INITIAL,
@@ -143,7 +159,7 @@ impl CosmicBackend {
     ) -> Result<Self, TextError> {
         let system = Self::font_system(fonts)?;
         Ok(Self {
-            fonts: system,
+            fonts: Arc::new(Mutex::new(system)),
             cache: VecDeque::new(),
             capacity,
             revision: Revision::INITIAL,
@@ -175,7 +191,7 @@ impl CosmicBackend {
             .revision
             .checked_next()
             .map_err(|_| TextError::RevisionExhausted)?;
-        self.fonts = replacement;
+        self.fonts = Arc::new(Mutex::new(replacement));
         self.revision = revision;
         self.cache.clear();
         Ok(())
@@ -204,11 +220,12 @@ impl TextBackend for CosmicBackend {
             self.hits = self.hits.saturating_add(1);
             return Ok(result);
         }
-        if self.fonts.db().faces().next().is_none() {
+        let mut fonts = self.fonts.lock().unwrap_or_else(|e| e.into_inner());
+        if fonts.db().faces().next().is_none() {
             return Err(TextError::NoFonts);
         }
         let mut buffer = Buffer::new(
-            &mut self.fonts,
+            &mut fonts,
             Metrics::new(request.font_size, request.line_height),
         );
         buffer.set_size(request.max_width, None);
@@ -229,12 +246,14 @@ impl TextBackend for CosmicBackend {
             Shaping::Advanced,
             None,
         );
-        buffer.shape_until_scroll(&mut self.fonts, false);
+        buffer.shape_until_scroll(&mut fonts, false);
         let mut starts: Vec<_> = cosmic_text::LineIter::new(request.text.text())
             .map(|(r, _)| r.start)
             .collect();
         starts.push(request.text.text().len());
         let mut result = ShapedText {
+            buffer: buffer.clone(),
+            raster_fonts: self.fonts.clone(),
             text: request.text.clone(),
             size: LogicalSize::ZERO,
             stops: Vec::new(),
@@ -264,7 +283,7 @@ impl TextBackend for CosmicBackend {
                     result.missing_glyphs += 1;
                 }
                 if !font_ids.contains(&(glyph.font_id, glyph.font_weight)) {
-                    if let Some(font) = self.fonts.get_font(glyph.font_id, glyph.font_weight) {
+                    if let Some(font) = fonts.get_font(glyph.font_id, glyph.font_weight) {
                         result.fonts.push(font);
                     }
                     font_ids.push((glyph.font_id, glyph.font_weight));

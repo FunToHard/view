@@ -2,6 +2,14 @@
 
 Snapshot: 2026-10-08, after M2A implementation, passing three-platform CPU CI and merge to main. This file transfers context; the canonical checklist remains the only progress board. Recheck Git before changing anything.
 
+Local M3A update, 2026-10-08: this worktree now contains the optional `view-wgpu`
+2D renderer and provider/surface contracts. See the [rendering guide](docs/guides/rendering.md),
+[M3A evidence](docs/plan/evidence/m3a-renderer.md) and canonical section 4 checklist.
+The historical merged snapshot below predates these local changes. Renderer work
+has not been pushed or merged by this task; Linux/macOS GPU coverage remains open.
+Do not treat the older “no production renderer” / “next M3A-01” notes as current
+worktree state. M2B controls and M3B 3D/host proofs remain separate later scope.
+
 ## Start here
 
 Repository: `F:\DEV\ui\view` (Windows, PowerShell).

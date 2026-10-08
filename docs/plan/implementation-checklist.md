@@ -155,20 +155,22 @@ M2A evidence: [shared text implementation and verification](evidence/m2a-text-ed
 Sources: [rendering](../design/04-rendering-and-interop.md).
 Capabilities: C-08, C-09, C-12 foundations. Acceptance: T-07, T-10–T-12 at applicable layers.
 
-- [ ] **M3A-01** Introduce view-wgpu; negotiate adapter/device features, limits, formats and error reporting without leaking wgpu into core controls.
-- [ ] **M3A-02** Implement framework-owned surfaces and offscreen targets, acquisition/presentation lifecycle, resize coalescing and zero-size/occlusion handling.
-- [ ] **M3A-03** Define paint/layer records and prepared snapshots with content revisions; preserve draw order and separate commit/submission/presentation observations.
-- [ ] **M3A-04** Implement WGSL pipelines and checked host data layouts for quads, images and selected primitives.
-- [ ] **M3A-05** Implement paths/fills/strokes through lyon, transforms, clipping and hit/paint coordinate agreement.
-- [ ] **M3A-06** Integrate glyphon text drawing with cosmic-text; render caret/selection/preedit while preserving ordering and clipping.
-- [ ] **M3A-07** Implement explicit SDR transfer/alpha conventions, premultiplied composition and isolated group opacity; preserve color metadata.
-- [ ] **M3A-08** Implement texture/buffer/glyph/geometry caches, budget accounting, eviction invalidation and submission-aware retirement.
-- [ ] **M3A-09** Implement provider negotiate/prepare/encode/compose/retire/resize/recreate phases and pass dependency validation; diagnose stale handles, cycles and undeclared writers.
-- [ ] **M3A-10** Implement offscreen and compatible existing-texture contributions with device/usage/format/sample/alpha/origin checks and resolve requirements.
-- [ ] **M3A-11** Implement the scoped direct-contribution path for compatible attachments/order; reject unsupported use or select the documented offscreen fallback.
-- [ ] **M3A-12** Implement device-generation invalidation, surface failure handling and provider recreation/error callbacks; avoid unconditional recovery promises.
-- [ ] **M3A-13** Add real offscreen GPU fixtures for shapes/text/clips/blending/layers/cache eviction and revision-tagged readback; record comparison tolerances.
-- [ ] **M3A-14** Execute graphics fixtures on provisioned Windows/Linux/macOS backends; classify software rendering separately and keep missing required coverage open.
+- [x] **M3A-01** Introduce view-wgpu; negotiate adapter/device features, limits, formats and error reporting without leaking wgpu into core controls.
+- [x] **M3A-02** Implement framework-owned surfaces and offscreen targets, acquisition/presentation lifecycle, resize coalescing and zero-size/occlusion handling.
+- [x] **M3A-03** Define paint/layer records and prepared snapshots with content revisions; preserve draw order and separate commit/submission/presentation observations.
+- [x] **M3A-04** Implement WGSL pipelines and checked host data layouts for quads, images and selected primitives.
+- [x] **M3A-05** Implement paths/fills/strokes through lyon, transforms, clipping and hit/paint coordinate agreement.
+- [x] **M3A-06** Integrate glyphon text drawing with cosmic-text; render caret/selection/preedit while preserving ordering and clipping.
+- [x] **M3A-07** Implement explicit SDR transfer/alpha conventions, premultiplied composition and isolated group opacity; preserve color metadata.
+- [x] **M3A-08** Implement texture/buffer/glyph/geometry caches, budget accounting, eviction invalidation and submission-aware retirement.
+- [x] **M3A-09** Implement provider negotiate/prepare/encode/compose/retire/resize/recreate phases and pass dependency validation; diagnose stale handles, cycles and undeclared writers.
+- [x] **M3A-10** Implement offscreen and compatible existing-texture contributions with device/usage/format/sample/alpha/origin checks and resolve requirements.
+- [x] **M3A-11** Implement the scoped direct-contribution path for compatible attachments/order; reject unsupported use or select the documented offscreen fallback.
+- [x] **M3A-12** Implement device-generation invalidation, surface failure handling and provider recreation/error callbacks; avoid unconditional recovery promises.
+- [x] **M3A-13** Add real offscreen GPU fixtures for shapes/text/clips/blending/layers/cache eviction and revision-tagged readback; record comparison tolerances.
+- [ ] **M3A-14** Execute graphics fixtures on provisioned Windows/Linux/macOS backends; classify software rendering separately and keep missing required coverage open. Windows DX12/Vulkan executed locally; Linux/macOS GPU coverage remains open. See [M3A evidence](evidence/m3a-renderer.md).
+
+Implementation and verification for M3A-01–M3A-13: [M3A renderer evidence](evidence/m3a-renderer.md) and [supported rendering profile](../guides/rendering.md). This does not close M3A-14, M0 infrastructure, M3B, or native-control certification.
 
 ## 5. Complete standard controls and accessibility — M2 completion
 

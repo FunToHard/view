@@ -2062,6 +2062,7 @@ version = "0.1.0"
 dependencies = [
  "view-core",
  "view-text",
+ "view-wgpu",
 ]
 
 [[package]]
@@ -2092,6 +2093,19 @@ dependencies = [
  "cosmic-text",
  "unicode-segmentation",
  "view-core",
+]
+
+[[package]]
+name = "view-wgpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glyphon",
+ "lyon",
+ "view-core",
+ "view-text",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

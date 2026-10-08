@@ -6,7 +6,7 @@ A Rust framework being designed for native desktop applications that combine ret
 
 The intended applications include game-engine editors, IDEs, image editors, and other demanding creative and development tools. Native platform behavior, extensibility, automation, and measurable performance are design requirements.
 
-**Status: M1A headless runtime complete; design baseline 0.4.** The unpublished `view` facade exposes dependency-free `view-core` ownership, keyed reconciliation, typed actions, cancellation, demand scheduling and committed structural snapshots. `view-testing` provides controlled time/input and service fixtures. Native input, layout, semantics, controls and rendering remain later milestones. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Runtime CPU tests passed on Windows x64, Linux x64 and macOS ARM64; M0 infrastructure gates remain open. Actual coverage is recorded in the implementation checklist.
+**Status: runtime, native shell, shared text editing and optional 2D rendering implemented; design baseline 0.4.** The unpublished `view` facade exposes dependency-free core ownership, layout, input and committed semantics. Optional text/shaping and wgpu rendering features add editing and SDR 2D composition. Standard controls and 3D proofs remain later work. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Earlier runtime/text CPU tests passed on Windows, Linux and macOS; this renderer has local Windows GPU evidence, with Linux/macOS graphics coverage still open. Actual coverage is recorded in the implementation checklist.
 
 Start with the [design index](docs/design/README.md). The first delivery target is Windows; Linux and macOS participate in CI testing with explicitly recorded coverage limitations.
 
@@ -19,6 +19,10 @@ Completed setup, remaining work and deferred expansions are recorded separately.
 For the implemented headless API, start with the
 [runtime guide](docs/guides/headless-runtime.md) and run
 `cargo run -p view-testing --example headless --locked`.
+
+For 2D paint, text, images, layers and providers, see the
+[rendering guide](docs/guides/rendering.md). The explicit offscreen fixture is
+`cargo run -p view-wgpu --example offscreen --locked -- dx12`.
 
 ## Development
 
