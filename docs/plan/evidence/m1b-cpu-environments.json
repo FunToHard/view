@@ -1,0 +1,64 @@
+{
+  "runUrl": "https://github.com/FunToHard/view/actions/runs/37761330873",
+  "commit": "d7add724e0fd5363ceb9b23d90fcf7ef994e1b1e",
+  "conclusion": "success",
+  "environments": [
+    {
+      "timestampUtc": "2026-10-08T10:08:23.0023725Z",
+      "os": "Microsoft Windows 10.0.26100",
+      "architecture": "X64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: x86_64-pc-windows-msvc",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "Windows",
+      "imageOS": "win25-vs2026",
+      "imageVersion": "20260925.250.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false
+    },
+    {
+      "timestampUtc": "2026-10-08T10:08:09.3675017Z",
+      "os": "Ubuntu 24.04.5 LTS",
+      "architecture": "X64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: x86_64-unknown-linux-gnu",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "Linux",
+      "imageOS": "ubuntu24",
+      "imageVersion": "20261004.327.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false
+    },
+    {
+      "timestampUtc": "2026-10-08T10:08:16.810864Z",
+      "os": "macOS 15.7.9",
+      "architecture": "Arm64",
+      "compiler": [
+        "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "binary: rustc",
+        "commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985",
+        "commit-date: 2026-09-01",
+        "host: aarch64-apple-darwin",
+        "release: 1.98.1",
+        "LLVM version: 22.1.8"
+      ],
+      "runnerOS": "macOS",
+      "imageOS": "macos15",
+      "imageVersion": "20260907.0337.1",
+      "gpuRequested": false,
+      "nativeInputRequested": false
+    }
+  ]
+}

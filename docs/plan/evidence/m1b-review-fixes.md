@@ -41,4 +41,16 @@ movement or IME certification is claimed. M0 remains outside this change.
 
 ## CI
 
-Three-platform CI execution will be recorded after pushing this verified revision.
+[CPU qualification run 37761330873](https://github.com/FunToHard/view/actions/runs/37761330873)
+passed on Windows 2025, Ubuntu 24.04 and macOS 15 for implementation commit
+`d7add724e0fd5363ceb9b23d90fcf7ef994e1b1e`. All three jobs ran the complete
+verification script, including the seven regression tests and independent
+consumer. Windows also passed the hidden inspectable app and all three callback
+failure checks. [Runner environments](m1b-cpu-environments.json) preserve the
+actual OS, architecture and compiler metadata.
+
+The first run exposed an unconditional Windows COM test import under strict
+Clippy on Linux/macOS. The import is now Windows-gated; the full local script
+passed again before the successful CI run. This evidence covers CPU/headless
+execution across all three platforms and hidden native Windows checks, with the
+native/GPU limitations above unchanged.
