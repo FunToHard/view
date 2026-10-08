@@ -109,23 +109,26 @@ Acceptance: headless portions of T-01 through T-05.
 Sources: [runtime](../design/02-runtime-architecture.md), [platform](../design/05-native-platform.md), RUN-03/RUN-04/RUN-06.
 Capabilities: C-04, C-05, C-06, C-11, C-17 foundations. Acceptance: applicable T-01–T-05, T-11–T-13.
 
-- [ ] **M1B-01** Define logical/physical/document geometry, units, finite-value validation and transform/precision rules; keep screen coordinates in the platform boundary.
-- [ ] **M1B-02** Implement constraints, measure/arrange and row/column/stack/padding/alignment; cache only with valid dependencies and pure measurement.
-- [ ] **M1B-03** Implement clip/transform chains, paint-order-aware hit geometry and custom layout/hit contracts with analytic fixtures.
-- [ ] **M1B-04** Implement ordered pointer/keyboard events, hover/press/cancel, capture and routing against committed geometry; flush required commits before later geometry-dependent input.
-- [ ] **M1B-05** Implement focus traversal, command/shortcut scopes, modal precedence and focus restoration; distinguish focus from scene selection.
-- [ ] **M1B-06** Implement scroll state, nested boundary/chaining policy, keyboard scrolling, reveal-target and virtual-content realization contracts.
-- [ ] **M1B-07** Implement semantic nodes, stable roles/names/values/actions and incremental snapshots; virtual/custom content declares its capabilities.
-- [ ] **M1B-08** Introduce view-platform with winit and targeted Windows bindings; contain COM/FFI/thread affinity and handle ownership explicitly.
-- [ ] **M1B-09** Create native decorated Windows windows and event pumping; implement open/resize/close/activation/minimize lifecycle without custom frame imitation.
-- [ ] **M1B-10** Implement DPI/text-scale changes and client/logical/physical/screen conversion; cover monitor movement and negative virtual-desktop coordinates.
-- [ ] **M1B-11** Connect native pointer/keyboard, capture-loss, cursor and text/IME service interfaces; register capability failures explicitly.
-- [ ] **M1B-12** Implement multiple-window ownership, modal windows and close requests; preserve application documents while remounting view state, with explicit restoration snapshots.
-- [ ] **M1B-13** Resolve focus/capture/composition on removal, deactivation and window destruction; route late events safely.
-- [ ] **M1B-14** Run the minimal inspectable native app: queued action, keyed identity, coherent snapshot, unmount and idle behavior. Keep rendered-text/IME certification open for later phases.
-- [ ] **M1B-15** Review M1 contracts and execute analytic layout/input/semantic tests plus native frame smoke; record Linux/macOS adapter limits separately.
+- [x] **M1B-01** Define logical/physical/document geometry, units, finite-value validation and transform/precision rules; keep screen coordinates in the platform boundary. Evidence: [`crates/view-core/src/geometry.rs`](../../crates/view-core/src/geometry.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-02** Implement constraints, measure/arrange and row/column/stack/padding/alignment; cache only with valid dependencies and pure measurement. Evidence: [`crates/view-core/src/layout.rs`](../../crates/view-core/src/layout.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-03** Implement clip/transform chains, paint-order-aware hit geometry and custom layout/hit contracts with analytic fixtures. Evidence: [`crates/view-core/src/hit_test.rs`](../../crates/view-core/src/hit_test.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-04** Implement ordered pointer/keyboard events, hover/press/cancel, capture and routing against committed geometry; flush required commits before later geometry-dependent input. Evidence: [`crates/view-core/src/input.rs`](../../crates/view-core/src/input.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-05** Implement focus traversal, command/shortcut scopes, modal precedence and focus restoration; distinguish focus from scene selection. Evidence: [`crates/view-core/src/focus.rs`](../../crates/view-core/src/focus.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-06** Implement scroll state, nested boundary/chaining policy, keyboard scrolling, reveal-target and virtual-content realization contracts. Evidence: [`crates/view-core/src/scroll.rs`](../../crates/view-core/src/scroll.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-07** Implement semantic nodes, stable roles/names/values/actions and incremental snapshots; virtual/custom content declares its capabilities. Evidence: [`crates/view-core/src/semantics.rs`](../../crates/view-core/src/semantics.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-08** Introduce view-platform with winit and targeted Windows bindings; contain COM/FFI/thread affinity and handle ownership explicitly. Evidence: [`crates/view-platform`](../../crates/view-platform), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-09** Create native decorated Windows windows and event pumping; implement open/resize/close/activation/minimize lifecycle without custom frame imitation. Evidence: [`crates/view-platform/src/window.rs`](../../crates/view-platform/src/window.rs), [`app.rs`](../../crates/view-platform/src/app.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-10** Implement DPI/text-scale changes and client/logical/physical/screen conversion; cover monitor movement and negative virtual-desktop coordinates. Evidence: [`crates/view-platform/src/dpi.rs`](../../crates/view-platform/src/dpi.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-11** Connect native pointer/keyboard, capture-loss, cursor and text/IME service interfaces; register capability failures explicitly. Evidence: [`crates/view-platform/src/events.rs`](../../crates/view-platform/src/events.rs), [`services.rs`](../../crates/view-platform/src/services.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-12** Implement multiple-window ownership, modal windows and close requests; preserve application documents while remounting view state, with explicit restoration snapshots. Evidence: [`crates/view-platform/src/shell.rs`](../../crates/view-platform/src/shell.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-13** Resolve focus/capture/composition on removal, deactivation and window destruction; route late events safely. Evidence: [`crates/view-platform/src/shell.rs`](../../crates/view-platform/src/shell.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-14** Run the minimal inspectable native app: queued action, keyed identity, coherent snapshot, unmount and idle behavior. Keep rendered-text/IME certification open for later phases. Evidence: [`crates/view-platform/examples/inspectable_app.rs`](../../crates/view-platform/examples/inspectable_app.rs), [evidence](evidence/m1b-native-shell.md).
+- [x] **M1B-15** Review M1 contracts and execute analytic layout/input/semantic tests plus native frame smoke; record Linux/macOS adapter limits separately. Evidence: [M1B evidence report](evidence/m1b-native-shell.md).
 
 ## 3. Implement text services and shared editing — M2
+
+M1B review follow-up: [ten corrected findings and regression evidence](evidence/m1b-review-fixes.md).
+Native frame/IME/physical-input certification is not implied by hidden smoke.
 
 Sources: [control profiles](../design/13-controls-and-conformance.md).
 Capabilities: C-16, C-42; C-04 text measurement. Acceptance: headless T-29–T-31, T-01 editing extension.
@@ -360,6 +363,7 @@ add a row here rather than duplicating status in another plan.
 | M0-10 | [Hosted CPU evidence](evidence/m0-qualification.md#hosted-cpu-execution) | Windows x64, Linux x64 and macOS ARM64 jobs passed; environment manifests retained; no GPU or physical-input execution |
 | M1A-01 | [Foundation evidence](evidence/m1a-01-foundations.md) | Historical first-increment Windows value-type evidence; later runtime evidence supersedes implementation limits |
 | M1A-02–M1A-14 | [Headless runtime and three-platform CPU evidence](evidence/m1a-runtime.md) | Windows x64, Linux x64 and macOS ARM64 contracts, harness, example and independent consumer passed; no M1B/native certification |
+| M1B-01–M1B-15 | [M1B native shell and analytic contracts](evidence/m1b-native-shell.md) | Windows 11 x64 verified: geometry, layout, hit-test, input, focus, scroll, semantics, view-platform, inspectable app smoke, and 64 passing tests; no desktop input seizing; Linux/macOS frame certification open |
 
 All later entries remain unchecked until their concrete deliverables and applicable
 verification exist. A milestone is complete only when its required implementation

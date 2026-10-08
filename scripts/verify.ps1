@@ -37,7 +37,15 @@ try {
     Invoke-Cargo @('doc','--workspace','--no-deps','--locked')
     Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
+    Invoke-Cargo @('test','-p','view-platform','--locked')
     Invoke-Cargo @('run','-p','view-testing','--example','headless','--locked')
+    # A hidden window still requires a native desktop/display server.
+    if ($IsWindows) { Invoke-Cargo @('run','-p','view-platform','--example','inspectable_app','--locked','--','--run-hidden') }
+    if ($IsWindows) {
+        foreach ($stage in @('ready','idle','event')) {
+            Invoke-Cargo @('run','-p','view-platform','--example','callback_failure','--locked','--','--run-hidden',$stage)
+        }
+    }
     Invoke-Cargo @('check','-p','view','--no-default-features','--locked')
     Invoke-Cargo @('check','-p','view','--all-features','--locked')
     # Independent workspace/lockfile, unaffected by root feature unification.

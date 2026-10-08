@@ -6,12 +6,22 @@ use std::{
     },
 };
 
-use crate::{ArenaHandle, CoreError, Revision, WindowId};
+use crate::{
+    ArenaHandle, CoreError, Revision, WindowId,
+    geometry::{LogicalRect, LogicalSize, Transform2D},
+    semantics::{Role, SemanticAction, SemanticNode, SemanticSnapshot},
+};
 
 /// Runtime node identity; copying it does not retain the node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NodeId(pub(crate) ArenaHandle);
 impl NodeId {
+    /// Construct a NodeId from an ArenaHandle.
+    #[inline]
+    pub fn from_handle(handle: ArenaHandle) -> Self {
+        Self(handle)
+    }
+
     /// Handle for diagnostics, not proof of liveness.
     pub fn handle(self) -> ArenaHandle {
         self.0
@@ -92,6 +102,15 @@ pub struct Description<M, A> {
     pub(crate) state: Box<dyn Any>,
     pub(crate) handler: Handler<M, A>,
     pub(crate) structure: Structure,
+    pub(crate) layout_rect: LogicalRect,
+    pub(crate) transform: Transform2D,
+    pub(crate) clip: Option<LogicalRect>,
+    pub(crate) focusable: bool,
+    pub(crate) tab_index: i32,
+    pub(crate) role: Option<Role>,
+    pub(crate) name: Option<String>,
+    pub(crate) value: Option<String>,
+    pub(crate) semantic_actions: Vec<SemanticAction>,
 }
 impl<M, A> Description<M, A> {
     /// Describe owned local state and a handler borrowing the current model only
@@ -121,11 +140,70 @@ impl<M, A> Description<M, A> {
                 )
             }),
             structure: Structure::Retained,
+            layout_rect: LogicalRect::ZERO,
+            transform: Transform2D::IDENTITY,
+            clip: None,
+            focusable: false,
+            tab_index: 0,
+            role: None,
+            name: None,
+            value: None,
+            semantic_actions: Vec::new(),
         }
     }
     /// Select direct-child ownership; changing this resets the component.
     pub fn structure(mut self, structure: Structure) -> Self {
         self.structure = structure;
+        self
+    }
+    /// Specify local layout bounds.
+    pub fn layout(mut self, rect: LogicalRect) -> Self {
+        self.layout_rect = rect;
+        self
+    }
+    /// Specify local layout size.
+    pub fn size(mut self, size: LogicalSize) -> Self {
+        self.layout_rect.size = size;
+        self
+    }
+    /// Specify local 2D transform.
+    pub fn transform(mut self, transform: Transform2D) -> Self {
+        self.transform = transform;
+        self
+    }
+    /// Specify local clip rectangle.
+    pub fn clip(mut self, clip: LogicalRect) -> Self {
+        self.clip = Some(clip);
+        self
+    }
+    /// Mark node as focusable.
+    pub fn focusable(mut self, focusable: bool) -> Self {
+        self.focusable = focusable;
+        self
+    }
+    /// Specify tab index for focus traversal.
+    pub fn tab_index(mut self, tab_index: i32) -> Self {
+        self.tab_index = tab_index;
+        self
+    }
+    /// Specify accessible role.
+    pub fn role(mut self, role: Role) -> Self {
+        self.role = Some(role);
+        self
+    }
+    /// Specify accessible label/name.
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+    /// Specify accessible value.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+    /// Specify accessible actions.
+    pub fn semantic_actions(mut self, actions: Vec<SemanticAction>) -> Self {
+        self.semantic_actions = actions;
         self
     }
 }
@@ -184,7 +262,7 @@ impl CompletionToken {
 }
 
 /// Immutable structural observation from a completed headless commit.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeSnapshot {
     /// Live node at this revision.
     pub id: NodeId,
@@ -202,15 +280,42 @@ pub struct NodeSnapshot {
     pub structure: Structure,
     /// Resource registrations grouped by category.
     pub resources: Vec<ResourceKind>,
+    /// Local layout rectangle.
+    pub bounds: LogicalRect,
+    /// Bounding rectangle in window logical space.
+    pub global_bounds: LogicalRect,
+    /// Accessible role, if declared.
+    pub role: Option<Role>,
+    /// Accessible name, if declared.
+    pub name: Option<String>,
+    /// Whether node is focusable.
+    pub focusable: bool,
+    /// Semantic record captured atomically with this tree revision.
+    pub semantic: Option<SemanticNode>,
 }
 
-/// A coherent headless tree snapshot; not geometry, semantics or GPU presentation.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// A coherent tree snapshot including layout and semantic observation.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Snapshot {
     /// Runtime commit revision.
     pub revision: Revision,
     /// Nodes in deterministic arena slot order.
     pub nodes: Vec<NodeSnapshot>,
+}
+
+impl Snapshot {
+    /// Generate a coherent semantic snapshot from this tree snapshot.
+    pub fn semantic_snapshot(&self) -> SemanticSnapshot {
+        let nodes = self
+            .nodes
+            .iter()
+            .filter_map(|node| node.semantic.clone())
+            .collect();
+        SemanticSnapshot {
+            revision: self.revision,
+            nodes,
+        }
+    }
 }
 
 /// Per-window work request, coalesced until consumed.

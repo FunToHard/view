@@ -2068,6 +2068,15 @@ name = "view-core"
 version = "0.1.0"
 
 [[package]]
+name = "view-platform"
+version = "0.1.0"
+dependencies = [
+ "view-core",
+ "windows",
+ "winit",
+]
+
+[[package]]
 name = "view-testing"
 version = "0.1.0"
 dependencies = [

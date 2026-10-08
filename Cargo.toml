@@ -2,6 +2,7 @@
 members = [
     "crates/view",
     "crates/view-core",
+    "crates/view-platform",
     "crates/view-testing",
     "crates/platform-probe",
     "tools/dependency-probe",
@@ -24,6 +25,7 @@ undocumented_unsafe_blocks = "deny"
 
 [workspace.dependencies]
 view-core = { path = "crates/view-core", version = "0.1.0" }
+view-platform = { path = "crates/view-platform", version = "0.1.0" }
 view-testing = { path = "crates/view-testing", version = "0.1.0" }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 windows = { version = "0.62.2", default-features = false }

@@ -110,6 +110,16 @@ Network-driven loading/error/content branches use ordinary Rust control flow ove
 
 ## Event and commit contract
 
+M1B review correction (2026-10-08): arranged origins are parent-relative; a
+node's explicit transform acts in its own local space before layout translation
+and ancestor transforms. Hit callbacks receive zero-origin local coordinates.
+Scroll offsets translate descendants only, clipped to the container viewport.
+An empty clip intersection rejects all points and cannot become unrestricted.
+Semantic records (including values, actions, effective visibility and focus) are
+captured with the structural commit; reading them never exposes pending edits.
+Keyboard targets must satisfy window ownership, effective ancestor visibility
+and modal containment. See the [review regression evidence](../plan/evidence/m1b-review-fixes.md).
+
 1. Normalize platform input with window identity, coordinates, timestamp, and sequence number.
 2. Route against the latest committed hit geometry, or to the captured/focused target.
 3. Record interaction transitions and actions exactly once.

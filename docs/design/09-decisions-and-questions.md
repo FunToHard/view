@@ -203,6 +203,17 @@ from headless checks.
 
 ### Revision procedure
 
+M1B review corrections, 2026-10-08: Q-15 geometry composition now explicitly
+applies child-local transforms before ancestors and includes arranged origins
+and scroll displacement. P-03 observations publish semantic state at commit.
+Modal keyboard routing validates targets and excludes hidden ancestor subtrees.
+The native adapter uses the client origin rather than the decorated frame origin;
+callback errors terminate the loop and propagate to its caller. Linux adapter
+backend features are declared directly to avoid workspace feature-unification
+leaks. Hidden native smoke requires a desktop, so the standard verification script
+runs it on Windows only; other hosts run CPU tests and compilation. No new registry
+dependency is selected. Acceptance: [regressions and verification](../plan/evidence/m1b-review-fixes.md).
+
 1. Capture feedback as an existing requirement/decision change or a new numbered entry.
 2. Record the decision, reason, alternatives, and affected contracts.
 3. Update all affected documents in the same revision.

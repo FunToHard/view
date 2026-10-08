@@ -38,6 +38,12 @@ pub enum CoreError {
         /// Arena named by the supplied handle.
         actual: ArenaId,
     },
+    /// A geometry value is not finite, negative where forbidden, or singular.
+    InvalidGeometry,
+    /// Constraints are invalid (e.g. min > max, negative, or non-finite).
+    InvalidConstraints,
+    /// An operation or target is blocked by an active modal scope.
+    ModalBlocked,
 }
 
 impl fmt::Display for CoreError {
@@ -59,6 +65,9 @@ impl fmt::Display for CoreError {
             Self::WrongArena { expected, actual } => {
                 write!(f, "wrong arena: expected {expected:?}, received {actual:?}")
             }
+            Self::InvalidGeometry => f.write_str("invalid geometry value"),
+            Self::InvalidConstraints => f.write_str("invalid layout constraints"),
+            Self::ModalBlocked => f.write_str("interaction blocked by active modal scope"),
         }
     }
 }

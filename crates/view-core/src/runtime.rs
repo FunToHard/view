@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     marker::PhantomData,
     rc::Rc,
     sync::{
@@ -9,7 +9,19 @@ use std::{
     },
 };
 
-use crate::{Arena, ArenaHandle, CoreError, Revision, WindowId, runtime_types::*};
+use crate::{
+    Arena, ArenaHandle, CoreError, Revision, WindowId,
+    focus::{FocusDirection, FocusManager, FocusableRegistration, Shortcut},
+    geometry::{LogicalPoint, LogicalRect, LogicalSize, Transform2D},
+    hit_test::{ClipChain, HitTestResult, TransformChain},
+    input::{
+        Key, KeyPhase, KeyboardEvent, NamedKey, PointerEvent, PointerRouter, RoutedPointerAction,
+    },
+    layout::LayoutCache,
+    runtime_types::*,
+    scroll::{ScrollChaining, ScrollState},
+    semantics::{Role, SemanticAction, SemanticNode, SemanticSnapshot},
+};
 
 struct Node<M, A> {
     window: WindowId,
@@ -26,12 +38,28 @@ struct Node<M, A> {
     builder: Option<Builder<M, A>>,
     responses: VecDeque<Revision>,
     leases: Vec<ArenaHandle>,
+    layout_rect: LogicalRect,
+    global_rect: LogicalRect,
+    transform: Transform2D,
+    clip: Option<LogicalRect>,
+    focusable: bool,
+    tab_index: i32,
+    role: Option<Role>,
+    name: Option<String>,
+    value: Option<String>,
+    semantic_actions: Vec<SemanticAction>,
+    #[allow(dead_code)]
+    layout_cache: LayoutCache,
 }
 
 struct Window {
     root: Option<NodeId>,
     demand: Demand,
     presented: Revision,
+    size: LogicalSize,
+    focus: FocusManager,
+    pointer: PointerRouter,
+    scroll: HashMap<NodeId, ScrollState>,
 }
 
 struct Lease {
@@ -160,6 +188,10 @@ impl<M, A> Runtime<M, A> {
                 viewport: false,
             },
             presented: Revision::INITIAL,
+            size: LogicalSize::ZERO,
+            focus: FocusManager::new(),
+            pointer: PointerRouter::default(),
+            scroll: HashMap::new(),
         })?);
         match self.insert(window, None, root) {
             Ok(id) => {
@@ -194,6 +226,17 @@ impl<M, A> Runtime<M, A> {
             builder: None,
             responses: VecDeque::new(),
             leases: Vec::new(),
+            layout_rect: description.layout_rect,
+            global_rect: description.layout_rect,
+            transform: description.transform,
+            clip: description.clip,
+            focusable: description.focusable,
+            tab_index: description.tab_index,
+            role: description.role,
+            name: description.name,
+            value: description.value,
+            semantic_actions: description.semantic_actions,
+            layout_cache: LayoutCache::default(),
         })?);
         self.changed = true;
         self.windows.get_mut(window.handle())?.demand.ui = true;
@@ -256,6 +299,14 @@ impl<M, A> Runtime<M, A> {
                 continue;
             }
             let node = self.nodes.remove(current.0)?;
+            let window = node.window;
+            if let Ok(win) = self.windows.get_mut(window.handle()) {
+                win.focus.handle_unmount(current);
+                if win.pointer.captured() == Some(current) {
+                    let _ = win.pointer.release_capture();
+                }
+                win.scroll.remove(&current);
+            }
             for lease in node.leases {
                 self.revoke(lease, true)?;
             }
@@ -440,7 +491,17 @@ impl<M, A> Runtime<M, A> {
                 })
             });
             let child = if let Some(id) = existing {
-                self.nodes.get_mut(id.0)?.handler = description.handler;
+                let n = self.nodes.get_mut(id.0)?;
+                n.handler = description.handler;
+                n.layout_rect = description.layout_rect;
+                n.transform = description.transform;
+                n.clip = description.clip;
+                n.focusable = description.focusable;
+                n.tab_index = description.tab_index;
+                n.role = description.role;
+                n.name = description.name;
+                n.value = description.value;
+                n.semantic_actions = description.semantic_actions;
                 id
             } else {
                 self.insert(window, Some(parent), description)?
@@ -785,6 +846,30 @@ impl<M, A> Runtime<M, A> {
             pending.extend(self.nodes.get(id.0)?.children.iter().rev().copied());
         }
         if self.changed {
+            // Recompute layout transforms and global bounds for each window.
+            let window_ids: Vec<_> = self
+                .windows
+                .iter()
+                .map(|(id, _)| WindowId::from_handle(id))
+                .collect();
+            for win_id in window_ids {
+                if let Ok(win) = self.windows.get(win_id.handle())
+                    && let Some(root_id) = win.root
+                {
+                    let root_clip = if win.size.width > 0.0 && win.size.height > 0.0 {
+                        ClipChain::new(LogicalRect::from_xywh(
+                            0.0,
+                            0.0,
+                            win.size.width,
+                            win.size.height,
+                        ))
+                    } else {
+                        ClipChain::NONE
+                    };
+                    self.update_layout_hierarchy(root_id, root_clip, TransformChain::IDENTITY)?;
+                }
+            }
+
             let nodes = self
                 .nodes
                 .iter()
@@ -801,6 +886,28 @@ impl<M, A> Runtime<M, A> {
                         .iter()
                         .filter_map(|lease| self.leases.get(*lease).ok().map(|lease| lease.kind))
                         .collect(),
+                    bounds: node.layout_rect,
+                    global_bounds: node.global_rect,
+                    role: node.role.clone(),
+                    name: node.name.clone(),
+                    focusable: node.focusable,
+                    semantic: (node.role.is_some() || node.name.is_some() || node.focusable).then(
+                        || SemanticNode {
+                            id: NodeId(id),
+                            role: node.role.clone().unwrap_or(Role::Container),
+                            name: node.name.clone(),
+                            value: node.value.clone(),
+                            actions: node.semantic_actions.clone(),
+                            bounds: node.global_rect,
+                            disabled: false,
+                            focused: self
+                                .windows
+                                .get(node.window.handle())
+                                .is_ok_and(|win| win.focus.focused() == Some(NodeId(id))),
+                            checked: None,
+                            hidden: !self.effectively_visible(NodeId(id)),
+                        },
+                    ),
                 })
                 .collect();
             self.snapshot = Snapshot {
@@ -824,8 +931,481 @@ impl<M, A> Runtime<M, A> {
         }
         Ok(result)
     }
-}
 
+    fn update_layout_hierarchy(
+        &mut self,
+        id: NodeId,
+        parent_clip: ClipChain,
+        parent_transform: TransformChain,
+    ) -> Result<(), CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let local_rect = node.layout_rect;
+        let local_transform = node.transform;
+        let local_clip = node.clip;
+        let current_transform = parent_transform
+            .then(&Transform2D::translation(
+                local_rect.origin.x,
+                local_rect.origin.y,
+            ))
+            .then(&local_transform);
+        let current_clip = parent_clip.intersect(local_clip, &current_transform.transform());
+
+        let global_rect = current_transform
+            .transform()
+            .transform_rect(LogicalRect::new(LogicalPoint::ZERO, local_rect.size));
+        let (child_clip, child_transform) =
+            self.child_geometry(id, node, current_clip, current_transform)?;
+        let children = node.children.clone();
+
+        let node_mut = self.nodes.get_mut(id.0)?;
+        node_mut.global_rect = global_rect;
+
+        for child in children {
+            self.update_layout_hierarchy(child, child_clip, child_transform)?;
+        }
+        Ok(())
+    }
+
+    fn child_geometry(
+        &self,
+        id: NodeId,
+        node: &Node<M, A>,
+        clip: ClipChain,
+        transform: TransformChain,
+    ) -> Result<(ClipChain, TransformChain), CoreError> {
+        let win = self.windows.get(node.window.handle())?;
+        if let Some(scroll) = win.scroll.get(&id) {
+            let clip = clip.intersect(
+                Some(LogicalRect::new(LogicalPoint::ZERO, scroll.viewport_size)),
+                &transform.transform(),
+            );
+            let transform = transform.then(&Transform2D::translation(
+                -scroll.offset.x,
+                -scroll.offset.y,
+            ));
+            Ok((clip, transform))
+        } else {
+            Ok((clip, transform))
+        }
+    }
+
+    fn effectively_visible(&self, mut id: NodeId) -> bool {
+        loop {
+            let Ok(node) = self.nodes.get(id.0) else {
+                return false;
+            };
+            if node.visibility != Visibility::Visible {
+                return false;
+            }
+            match node.parent {
+                Some(parent) => id = parent,
+                None => return true,
+            }
+        }
+    }
+
+    fn keyboard_target_allowed(&self, window: WindowId, target: NodeId) -> bool {
+        self.nodes
+            .get(target.0)
+            .is_ok_and(|node| node.window == window)
+            && self.effectively_visible(target)
+            && self.windows.get(window.handle()).is_ok_and(|win| {
+                win.focus
+                    .is_allowed_by_modal(target, |parent, child| self.is_descendant(parent, child))
+                    .is_ok()
+            })
+    }
+
+    /// Set logical size for a window. Invalidates layout for that window.
+    pub fn set_window_size(
+        &mut self,
+        window: WindowId,
+        size: LogicalSize,
+    ) -> Result<(), CoreError> {
+        let win = self.windows.get_mut(window.handle())?;
+        win.size = size;
+        win.demand.ui = true;
+        self.changed = true;
+        if let Some(root) = win.root {
+            self.invalidate(root, Dirty::LAYOUT)?;
+        }
+        Ok(())
+    }
+
+    /// Logical size of a window.
+    pub fn window_size(&self, window: WindowId) -> Result<LogicalSize, CoreError> {
+        Ok(self.windows.get(window.handle())?.size)
+    }
+
+    /// Update arranged local layout bounds for a node.
+    pub fn set_layout(&mut self, id: NodeId, rect: LogicalRect) -> Result<(), CoreError> {
+        let node = self.nodes.get_mut(id.0)?;
+        node.layout_rect = rect;
+        self.invalidate(id, Dirty::LAYOUT)
+    }
+
+    /// Local layout bounds of a node.
+    pub fn layout_rect(&self, id: NodeId) -> Result<LogicalRect, CoreError> {
+        Ok(self.nodes.get(id.0)?.layout_rect)
+    }
+
+    /// Global bounding box of a node in window logical coordinates.
+    pub fn global_rect(&self, id: NodeId) -> Result<LogicalRect, CoreError> {
+        Ok(self.nodes.get(id.0)?.global_rect)
+    }
+
+    /// Set local 2D affine transform on a node.
+    pub fn set_transform(&mut self, id: NodeId, transform: Transform2D) -> Result<(), CoreError> {
+        let node = self.nodes.get_mut(id.0)?;
+        node.transform = transform;
+        self.invalidate(id, Dirty::LAYOUT.union(Dirty::COMPOSITE))
+    }
+
+    /// Set local clip rectangle on a node.
+    pub fn set_clip(&mut self, id: NodeId, clip: Option<LogicalRect>) -> Result<(), CoreError> {
+        let node = self.nodes.get_mut(id.0)?;
+        node.clip = clip;
+        self.invalidate(id, Dirty::LAYOUT.union(Dirty::COMPOSITE))
+    }
+
+    /// Perform paint-order-aware hit test against window's committed nodes.
+    pub fn hit_test(
+        &self,
+        window: WindowId,
+        point: LogicalPoint,
+    ) -> Result<Option<HitTestResult>, CoreError> {
+        let win = self.windows.get(window.handle())?;
+        let Some(root) = win.root else {
+            return Ok(None);
+        };
+        let root_clip = if win.size.width > 0.0 && win.size.height > 0.0 {
+            ClipChain::new(LogicalRect::from_xywh(
+                0.0,
+                0.0,
+                win.size.width,
+                win.size.height,
+            ))
+        } else {
+            ClipChain::NONE
+        };
+        let result = self.hit_test_recursive(root, point, root_clip, TransformChain::IDENTITY)?;
+
+        if let Some(res) = &result
+            && let Some(modal) = win.focus.modal_scope()
+            && !res.path.contains(&modal)
+        {
+            return Ok(None);
+        }
+
+        Ok(result)
+    }
+
+    fn hit_test_recursive(
+        &self,
+        id: NodeId,
+        point: LogicalPoint,
+        parent_clip: ClipChain,
+        parent_transform: TransformChain,
+    ) -> Result<Option<HitTestResult>, CoreError> {
+        let node = self.nodes.get(id.0)?;
+        if node.visibility != Visibility::Visible {
+            return Ok(None);
+        }
+        let current_transform = parent_transform
+            .then(&Transform2D::translation(
+                node.layout_rect.origin.x,
+                node.layout_rect.origin.y,
+            ))
+            .then(&node.transform);
+        let current_clip = parent_clip.intersect(node.clip, &current_transform.transform());
+
+        if !current_clip.contains(point) {
+            return Ok(None);
+        }
+
+        let Some(local_point) = current_transform.inverse_transform_point(point) else {
+            return Ok(None);
+        };
+
+        let (child_clip, child_transform) =
+            self.child_geometry(id, node, current_clip, current_transform)?;
+        for &child in node.children.iter().rev() {
+            if let Some(mut hit) =
+                self.hit_test_recursive(child, point, child_clip, child_transform)?
+            {
+                hit.path.push(id);
+                return Ok(Some(hit));
+            }
+        }
+
+        if LogicalRect::new(LogicalPoint::ZERO, node.layout_rect.size).contains(local_point) {
+            Ok(Some(HitTestResult {
+                target: id,
+                path: vec![id],
+                local_point,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Route an ordered pointer event against committed geometry.
+    ///
+    /// If there are pending required commits affecting geometry, flushes the runtime first.
+    pub fn route_pointer(
+        &mut self,
+        window: WindowId,
+        event: PointerEvent,
+        model: &mut M,
+    ) -> Result<Vec<RoutedPointerAction>, CoreError> {
+        if self.has_work() || self.demand(window)?.ui {
+            self.flush(model)?;
+        }
+
+        let hit = self.hit_test(window, event.position)?;
+        let win = self.windows.get_mut(window.handle())?;
+        let actions = win.pointer.route(event, |_| hit);
+        Ok(actions)
+    }
+
+    /// Route a keyboard event to shortcuts or focused node.
+    pub fn route_keyboard(
+        &mut self,
+        window: WindowId,
+        event: KeyboardEvent,
+        _model: &mut M,
+    ) -> Result<Option<NodeId>, CoreError> {
+        let win = self.windows.get_mut(window.handle())?;
+        let shortcut = Shortcut::new(event.key.clone(), event.modifiers);
+        if let Some(target) = win.focus.resolve_shortcut(&shortcut)
+            && self.keyboard_target_allowed(window, target)
+        {
+            return Ok(Some(target));
+        }
+
+        if event.phase == KeyPhase::Down && event.key == Key::Named(NamedKey::Tab) {
+            let direction = if event.modifiers.shift {
+                FocusDirection::Backward
+            } else {
+                FocusDirection::Forward
+            };
+            return self.navigate_focus(window, direction);
+        }
+
+        let focused = self
+            .windows
+            .get(window.handle())?
+            .focus
+            .focused()
+            .filter(|target| self.keyboard_target_allowed(window, *target));
+        if let Some(target) = focused
+            && let Some(scroll) = self
+                .windows
+                .get_mut(window.handle())?
+                .scroll
+                .get_mut(&target)
+            && scroll.handle_key(&event.key, 20.0)
+        {
+            self.invalidate(target, Dirty::LAYOUT)?;
+        }
+        Ok(focused)
+    }
+
+    /// Explicitly set or clear focus in a window.
+    pub fn set_focus(&mut self, window: WindowId, target: Option<NodeId>) -> Result<(), CoreError> {
+        self.windows.get(window.handle())?;
+        if let Some(target) = target
+            && !self.keyboard_target_allowed(window, target)
+        {
+            return Err(CoreError::ModalBlocked);
+        }
+        let win = self.windows.get_mut(window.handle())?;
+        win.focus.set_focus(target);
+        self.changed = true;
+        win.demand.ui = true;
+        Ok(())
+    }
+
+    /// Currently focused node in a window.
+    pub fn focused(&self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
+        Ok(self.windows.get(window.handle())?.focus.focused())
+    }
+
+    /// Move focus to next focusable node.
+    pub fn focus_next(&mut self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
+        self.navigate_focus(window, FocusDirection::Forward)
+    }
+
+    /// Move focus to previous focusable node.
+    pub fn focus_prev(&mut self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
+        self.navigate_focus(window, FocusDirection::Backward)
+    }
+
+    /// Set modal scope for a window.
+    pub fn set_modal_scope(
+        &mut self,
+        window: WindowId,
+        modal: Option<NodeId>,
+    ) -> Result<(), CoreError> {
+        let win = self.windows.get_mut(window.handle())?;
+        win.focus.set_modal_scope(modal);
+        self.changed = true;
+        win.demand.ui = true;
+        Ok(())
+    }
+
+    /// Active modal scope in a window.
+    pub fn modal_scope(&self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
+        Ok(self.windows.get(window.handle())?.focus.modal_scope())
+    }
+
+    /// Register a window-scoped shortcut.
+    pub fn register_shortcut(
+        &mut self,
+        window: WindowId,
+        shortcut: Shortcut,
+        target: NodeId,
+    ) -> Result<(), CoreError> {
+        let win = self.windows.get_mut(window.handle())?;
+        win.focus.register_shortcut(shortcut, target);
+        Ok(())
+    }
+
+    /// Cycle focus in the given direction.
+    pub fn navigate_focus(
+        &mut self,
+        window: WindowId,
+        direction: FocusDirection,
+    ) -> Result<Option<NodeId>, CoreError> {
+        let win = self.windows.get(window.handle())?;
+        let modal = win.focus.modal_scope();
+
+        let mut candidates = Vec::new();
+        for (id, node) in self.nodes.iter() {
+            if node.window == window && node.focusable && self.effectively_visible(NodeId(id)) {
+                let node_id = NodeId(id);
+                if let Some(m) = modal
+                    && !self.is_descendant(m, node_id)
+                    && node_id != m
+                {
+                    continue;
+                }
+                candidates.push(FocusableRegistration {
+                    id: node_id,
+                    tab_index: node.tab_index,
+                });
+            }
+        }
+
+        let win = self.windows.get_mut(window.handle())?;
+        let target = win.focus.navigate(direction, candidates);
+        self.changed = true;
+        win.demand.ui = true;
+        Ok(target)
+    }
+
+    /// Check if child is a descendant of parent.
+    pub fn is_descendant(&self, parent: NodeId, mut child: NodeId) -> bool {
+        while let Ok(node) = self.nodes.get(child.0) {
+            if let Some(p) = node.parent {
+                if p == parent {
+                    return true;
+                }
+                child = p;
+            } else {
+                break;
+            }
+        }
+        false
+    }
+
+    /// Set scroll state for a node.
+    pub fn set_scroll_state(&mut self, id: NodeId, state: ScrollState) -> Result<(), CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let win = self.windows.get_mut(node.window.handle())?;
+        win.scroll.insert(id, state);
+        self.invalidate(id, Dirty::LAYOUT)
+    }
+
+    /// Get scroll state for a node.
+    pub fn scroll_state(&self, id: NodeId) -> Result<Option<ScrollState>, CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let win = self.windows.get(node.window.handle())?;
+        Ok(win.scroll.get(&id).copied())
+    }
+
+    /// Scroll a container by delta, respecting nested chaining policy.
+    pub fn scroll_by(
+        &mut self,
+        id: NodeId,
+        delta: LogicalPoint,
+    ) -> Result<LogicalPoint, CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let window = node.window;
+        let mut current_id = Some(id);
+        let mut remaining = delta;
+        let mut total_consumed = LogicalPoint::ZERO;
+
+        while let Some(target) = current_id {
+            let win = self.windows.get_mut(window.handle())?;
+            if let Some(scroll) = win.scroll.get_mut(&target) {
+                let (consumed, unconsumed) = scroll.scroll_by(remaining);
+                total_consumed = total_consumed + consumed;
+                remaining = unconsumed;
+                if remaining == LogicalPoint::ZERO || scroll.chaining == ScrollChaining::Clamp {
+                    break;
+                }
+            }
+            current_id = self.nodes.get(target.0)?.parent;
+        }
+
+        if total_consumed != LogicalPoint::ZERO {
+            self.invalidate(id, Dirty::LAYOUT)?;
+        }
+        Ok(total_consumed)
+    }
+
+    /// Scroll ancestor containers to reveal a node.
+    pub fn reveal(&mut self, id: NodeId) -> Result<(), CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let window = node.window;
+        let mut target_rect = node.layout_rect;
+        let mut current = node.parent;
+
+        while let Some(parent_id) = current {
+            let win = self.windows.get_mut(window.handle())?;
+            if let Some(scroll) = win.scroll.get_mut(&parent_id) {
+                scroll.reveal_rect(target_rect);
+            }
+            let parent_node = self.nodes.get(parent_id.0)?;
+            target_rect = LogicalRect::new(
+                LogicalPoint::new(
+                    parent_node.layout_rect.origin.x + target_rect.origin.x,
+                    parent_node.layout_rect.origin.y + target_rect.origin.y,
+                ),
+                target_rect.size,
+            );
+            current = parent_node.parent;
+        }
+
+        self.invalidate(id, Dirty::LAYOUT)
+    }
+
+    /// Generate a coherent semantic snapshot for a window.
+    pub fn semantic_snapshot(&self, window: WindowId) -> Result<SemanticSnapshot, CoreError> {
+        self.windows.get(window.handle())?;
+        Ok(SemanticSnapshot {
+            revision: self.snapshot.revision,
+            nodes: self
+                .snapshot
+                .nodes
+                .iter()
+                .filter(|node| node.window == window)
+                .filter_map(|node| node.semantic.clone())
+                .collect(),
+        })
+    }
+}
 impl<M, A> Drop for Runtime<M, A> {
     fn drop(&mut self) {
         // Mark every token revoked before running any user cancellation hook.
