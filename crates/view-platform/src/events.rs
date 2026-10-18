@@ -23,6 +23,14 @@ pub enum ImeEvent {
 /// Normalized window events delivered to the framework shell and application.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlatformWindowEvent {
+    /// Committed keyboard text, distinct from commands and IME commits.
+    TextInput(String),
+    /// File dragged over this window. Reading it remains an application action.
+    FileHovered(std::path::PathBuf),
+    /// File dropped on this window. No implicit filesystem access is performed.
+    FileDropped(std::path::PathBuf),
+    /// File drag left or was cancelled.
+    FileHoverCancelled,
     /// Pointer movement, button click, capture or scroll.
     Pointer(PointerEvent),
     /// Physical or virtual keyboard event.
@@ -58,6 +66,8 @@ pub enum PlatformWindowEvent {
 /// State tracking for pointer positions and modifiers across native events.
 #[derive(Clone, Debug, Default)]
 pub struct InputStateTracker {
+    /// Whether native preedit is active (suppresses duplicate keyboard text).
+    pub composing: bool,
     /// Last known cursor position in window logical coordinates.
     pub last_cursor_position: Option<LogicalPoint>,
     /// Active modifiers state.
@@ -114,6 +124,9 @@ pub fn translate_window_event(
     tracker.timestamp_ms = timestamp_ms;
 
     match event {
+        WindowEvent::HoveredFile(path) => Some(PlatformWindowEvent::FileHovered(path.clone())),
+        WindowEvent::DroppedFile(path) => Some(PlatformWindowEvent::FileDropped(path.clone())),
+        WindowEvent::HoveredFileCancelled => Some(PlatformWindowEvent::FileHoverCancelled),
         WindowEvent::Resized(physical_size) => {
             let phys = PhysicalSize::from_pixels(physical_size.width, physical_size.height);
             let log = phys.to_logical(scale_factor);
@@ -272,6 +285,11 @@ pub fn translate_window_event(
         }
 
         WindowEvent::Ime(ime) => {
+            match ime {
+                Ime::Preedit(text, _) => tracker.composing = !text.is_empty(),
+                Ime::Commit(_) | Ime::Disabled => tracker.composing = false,
+                _ => {}
+            }
             let ime_event = match ime {
                 Ime::Enabled => ImeEvent::Enabled,
                 Ime::Preedit(text, cursor) => ImeEvent::Preedit(text.clone(), *cursor),
@@ -285,4 +303,25 @@ pub fn translate_window_event(
 
         _ => None,
     }
+}
+
+/// Extract printable keyboard text independently of command-key routing. Native
+/// preedit owns composition; Ctrl/Meta shortcuts cannot insert their key labels.
+/// Ctrl+Alt text is retained for AltGr layouts.
+pub fn keyboard_text(event: &WindowEvent, tracker: &InputStateTracker) -> Option<String> {
+    let WindowEvent::KeyboardInput { event, .. } = event else {
+        return None;
+    };
+    if event.state != ElementState::Pressed
+        || tracker.composing
+        || tracker.modifiers.meta
+        || (tracker.modifiers.ctrl && !tracker.modifiers.alt)
+    {
+        return None;
+    }
+    event
+        .text
+        .as_ref()
+        .map(|text| text.chars().filter(|c| !c.is_control()).collect::<String>())
+        .filter(|text| !text.is_empty())
 }

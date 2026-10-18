@@ -203,6 +203,22 @@ from headless checks.
 
 ### Revision procedure
 
+M2B implementation refinement, 2026-10-18: P-21/Q-20 now has `view-controls`
+with persistent shared behavior sessions, typed resolved styles, and optional
+render/accessibility features. Runtime node IDs remain the sole control identity;
+logical pointer capture is exposed with liveness, visibility and modal checks.
+AccessKit IDs are monotonic adapter mappings, not a second ownership model.
+Native callbacks read complete committed snapshots and queue revision-tagged
+actions for UI-thread validation. Full semantic updates express removal through
+parent child lists. Desktop effects are explicit application actions; Win32/COM
+ownership and thread checks stay in view-platform. Reason: compose the existing
+editor/runtime with multiple decorations and native services without adding
+platform dependencies to core or applying editing effects during rendering.
+Acceptance, dependency costs and uncovered native requirements are recorded in
+[M2B evidence](../plan/evidence/m2b-controls.md); public contracts are in the
+[controls guide](../guides/controls.md). This does not certify physical native
+input, Linux AT-SPI, or native text-range geometry. M2B-11 remains open.
+
 M3A implementation refinement, 2026-10-08: P-04/P-05/P-07 and Q-06/Q-08/Q-14
 now use optional `view-wgpu`, keeping core backend-independent. The initial paint
 profile is single-sample RGBA/BGRA sRGB with linear premultiplied blending,

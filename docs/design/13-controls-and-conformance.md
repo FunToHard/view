@@ -133,4 +133,11 @@ Fuzz/property tests can exercise valid selection bounds, undo round trips, edit 
 
 ## Initial demonstration
 
+Implementation update: the preview control package and standard/custom text
+presentations now exist. See [control contracts](../guides/controls.md) and
+[preliminary per-control evidence](../plan/evidence/m2b-controls.md). The shared
+profiles retain uncovered native cases; actual IME candidate placement is still
+an open checklist requirement. This implementation evidence does not promote the
+controls to physical/native certification.
+
 Build the standard text field from the shared engine and prove Delete, selection, clipboard, undo, and IME before it is called complete. Then build a visually different field using the same behavior and run the same suite. Finally consume a Markdown preview control from a separate crate using only public interfaces. These experiments require implementation authorization and are tracked in the delivery plan.

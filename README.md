@@ -6,7 +6,7 @@ A Rust framework being designed for native desktop applications that combine ret
 
 The intended applications include game-engine editors, IDEs, image editors, and other demanding creative and development tools. Native platform behavior, extensibility, automation, and measurable performance are design requirements.
 
-**Status: runtime, native shell, shared text editing and optional 2D rendering implemented; design baseline 0.4.** The unpublished `view` facade exposes dependency-free core ownership, layout, input and committed semantics. Optional text/shaping and wgpu rendering features add editing and SDR 2D composition. Standard controls and 3D proofs remain later work. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Earlier runtime/text CPU tests passed on Windows, Linux and macOS; this renderer has local Windows GPU evidence, with Linux/macOS graphics coverage still open. Actual coverage is recorded in the implementation checklist.
+**Status: runtime, native shell, shared text editing and optional 2D rendering implemented; design baseline 0.4.** The unpublished `view` facade exposes dependency-free core ownership, layout, input and committed semantics. Optional text/shaping and wgpu rendering features add editing and SDR 2D composition. Preview standard controls and optional AccessKit/native desktop adapters are implemented; actual IME/physical certification and 3D proofs remain open. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Earlier runtime/text CPU tests passed on Windows, Linux and macOS; this renderer has local Windows GPU evidence, with Linux/macOS graphics coverage still open. Actual coverage is recorded in the implementation checklist.
 
 Start with the [design index](docs/design/README.md). The first delivery target is Windows; Linux and macOS participate in CI testing with explicitly recorded coverage limitations.
 
@@ -23,6 +23,9 @@ For the implemented headless API, start with the
 For 2D paint, text, images, layers and providers, see the
 [rendering guide](docs/guides/rendering.md). The explicit offscreen fixture is
 `cargo run -p view-wgpu --example offscreen --locked -- dx12`.
+
+For controls, styling, accessibility and the interactive gallery, see the
+[controls guide](docs/guides/controls.md) and [preliminary evidence](docs/plan/evidence/m2b-controls.md).
 
 ## Development
 

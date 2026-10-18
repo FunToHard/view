@@ -1163,12 +1163,25 @@ impl<M, A> Runtime<M, A> {
         }
 
         let hit = self.hit_test(window, event.position)?;
+        let revoked = self
+            .windows
+            .get(window.handle())?
+            .pointer
+            .captured()
+            .is_some_and(|target| !self.keyboard_target_allowed(window, target));
         let win = self.windows.get_mut(window.handle())?;
-        let actions = win.pointer.route(event, |_| hit);
+        let mut actions = if revoked {
+            win.pointer.reset()
+        } else {
+            Vec::new()
+        };
+        actions.extend(win.pointer.route(event, |_| hit));
         Ok(actions)
     }
 
     /// Route a keyboard event to shortcuts or focused node.
+    ///
+    /// Capturing controls use [`Self::capture_pointer`] after a routed press.
     pub fn route_keyboard(
         &mut self,
         window: WindowId,
@@ -1229,6 +1242,30 @@ impl<M, A> Runtime<M, A> {
     /// Currently focused node in a window.
     pub fn focused(&self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
         Ok(self.windows.get(window.handle())?.focus.focused())
+    }
+
+    /// Capture logical pointer routing for a live, visible node in this window's
+    /// modal scope. The native adapter remains responsible for OS capture. Up,
+    /// cancellation and owner unmount release this logical capture.
+    pub fn capture_pointer(&mut self, window: WindowId, target: NodeId) -> Result<(), CoreError> {
+        self.nodes.get(target.0)?;
+        if !self.keyboard_target_allowed(window, target) {
+            return Err(CoreError::ModalBlocked);
+        }
+        self.windows
+            .get_mut(window.handle())?
+            .pointer
+            .set_capture(target);
+        Ok(())
+    }
+
+    /// Cancel captured/pressed/hovered routing on native focus or capture loss.
+    /// Deliver returned cancellations to still-live control behavior sessions.
+    pub fn cancel_pointer(
+        &mut self,
+        window: WindowId,
+    ) -> Result<Vec<RoutedPointerAction>, CoreError> {
+        Ok(self.windows.get_mut(window.handle())?.pointer.reset())
     }
 
     /// Move focus to next focusable node.

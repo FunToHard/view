@@ -177,20 +177,22 @@ Implementation and verification for M3A-01–M3A-13: [M3A renderer evidence](evi
 Sources: [control profiles](../design/13-controls-and-conformance.md), [platform](../design/05-native-platform.md).
 Capabilities: C-06, C-14, C-15, C-16, C-20, C-42. Acceptance: T-29–T-31 and applicable T-01/T-11/T-16.
 
-- [ ] **M2B-01** Introduce view-controls and reusable pressable/focusable/range/selection/popup/scroll behaviors, separate from decoration.
-- [ ] **M2B-02** Implement typed themes, inherited/local style resolution, interaction states and versioned resource reload with precise invalidation.
-- [ ] **M2B-03** Implement text labels, images and buttons; include keyboard activation, press cancellation, disabled state and semantics.
-- [ ] **M2B-04** Implement toggle/checkbox/radio controls with explicit mixed/group/exclusivity and keyboard policies.
-- [ ] **M2B-05** Compose TextInput and plain TextArea from the shared engine; implement selection/caret/preedit visuals, focus indication and native command/context-menu routing.
-- [ ] **M2B-06** Implement numeric fields/sliders with bounds, precision, intermediate-invalid text, keyboard steps and commit/cancel behavior.
-- [ ] **M2B-07** Implement scrollbars/views and virtualized list/tree selection/navigation with stable identity, bounded realization and virtual focus.
-- [ ] **M2B-08** Implement split panes, popup/menu/dialog primitives and command-palette composition needed by proofs; cover screen edges, nesting, Escape and focus return.
-- [ ] **M2B-09** Integrate AccessKit semantic updates and action routing; expose native focus/value/selection/text services where supported.
-- [ ] **M2B-10** Complete clipboard, drag-and-drop, scoped file-dialog and shell-activation service adapters required by the proofs; application actions own external effects.
+- [x] **M2B-01** Introduce view-controls and reusable pressable/focusable/range/selection/popup/scroll behaviors, separate from decoration.
+- [x] **M2B-02** Implement typed themes, inherited/local style resolution, interaction states and versioned resource reload with precise invalidation.
+- [x] **M2B-03** Implement text labels, images and buttons; include keyboard activation, press cancellation, disabled state and semantics.
+- [x] **M2B-04** Implement toggle/checkbox/radio controls with explicit mixed/group/exclusivity and keyboard policies.
+- [x] **M2B-05** Compose TextInput and plain TextArea from the shared engine; implement selection/caret/preedit visuals, focus indication and native command/context-menu routing.
+- [x] **M2B-06** Implement numeric fields/sliders with bounds, precision, intermediate-invalid text, keyboard steps and commit/cancel behavior.
+- [x] **M2B-07** Implement scrollbars/views and virtualized list/tree selection/navigation with stable identity, bounded realization and virtual focus.
+- [x] **M2B-08** Implement split panes, popup/menu/dialog primitives and command-palette composition needed by proofs; cover screen edges, nesting, Escape and focus return.
+- [x] **M2B-09** Integrate AccessKit semantic updates and action routing; expose native focus/value/selection/text services where supported.
+- [x] **M2B-10** Complete clipboard, drag-and-drop, scoped file-dialog and shell-activation service adapters required by the proofs; application actions own external effects.
 - [ ] **M2B-11** Test actual IME candidate/preedit placement across clipping, scrolling and DPI; test composition with external value updates and unmount.
-- [ ] **M2B-12** Build a visually distinct text field using the same editor session; run identical mandatory profiles for both presentations.
-- [ ] **M2B-13** Build the control gallery with states and behavior matrices; include lifecycle, read-only-plus-copy, selection-plus-IME and virtualization-plus-focus cases.
-- [ ] **M2B-14** Publish preliminary per-control/profile/platform reports; close render/native checks now available and leave physical E2E certification to Phase 8.
+- [x] **M2B-12** Build a visually distinct text field using the same editor session; run identical mandatory profiles for both presentations.
+- [x] **M2B-13** Build the control gallery with states and behavior matrices; include lifecycle, read-only-plus-copy, selection-plus-IME and virtualization-plus-focus cases.
+- [x] **M2B-14** Publish preliminary per-control/profile/platform reports; close render/native checks now available and leave physical E2E certification to Phase 8.
+
+Implementation and preliminary verification: [M2B controls evidence](evidence/m2b-controls.md) and [control contracts](../guides/controls.md). M2B-11 remains open: actual OS IME candidate placement needs an explicitly selected desktop session. CPU, offscreen GPU and hidden-window checks do not certify physical input or assistive-technology behavior.
 
 This is the preview catalogue needed by the selected proofs. General tables,
 password fields and rich document editors are separate profiles to scope in the

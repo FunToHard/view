@@ -6,6 +6,7 @@ members = [
     "crates/view-testing",
     "crates/view-text",
     "crates/view-wgpu",
+    "crates/view-controls",
     "crates/platform-probe",
     "tools/dependency-probe",
 ]
@@ -31,6 +32,7 @@ view-platform = { path = "crates/view-platform", version = "0.1.0" }
 view-testing = { path = "crates/view-testing", version = "0.1.0" }
 view-text = { path = "crates/view-text", version = "0.1.0" }
 view-wgpu = { path = "crates/view-wgpu", version = "0.1.0" }
+view-controls = { path = "crates/view-controls", version = "0.1.0" }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 windows = { version = "0.62.2", default-features = false }
 wgpu = { version = "30.0.0", default-features = false, features = ["std", "dx12", "metal", "vulkan", "wgsl"] }

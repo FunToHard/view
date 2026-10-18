@@ -1,5 +1,15 @@
 # view — fresh-session handover
 
+Current continuation, 2026-10-18: renderer is committed as `27b3ec4`; controls
+implementation is committed on `codex/m2b-controls`; the original controls and documentation commits were squashed as requested. Section 5 now has
+`view-controls`, optional AccessKit/native services, and a gallery. See the
+[controls guide](docs/guides/controls.md) and [M2B evidence](docs/plan/evidence/m2b-controls.md).
+M2B-11 (actual native IME candidate placement) remains open; no dedicated physical
+test desktop was selected. The older snapshots below are historical. Recheck Git
+and the evidence report for the final verification/push status; do not infer that
+M3A-14, M3B, or physical/native certification is complete.
+
+
 Snapshot: 2026-10-08, after M2A implementation, passing three-platform CPU CI and merge to main. This file transfers context; the canonical checklist remains the only progress board. Recheck Git before changing anything.
 
 Local M3A update, 2026-10-08: this worktree now contains the optional `view-wgpu`

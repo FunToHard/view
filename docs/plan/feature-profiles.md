@@ -38,7 +38,7 @@ tools, not supported application APIs. Core has zero third-party dependencies an
 no feature flags; the harness depends only on core, and the facade adds view-text
 only when requested. view-text depends on core and unicode-segmentation, with
 cosmic-text behind the shaping feature. GPU dependencies also belong to optional
-view-wgpu; accessibility remains in qualification probes. Native window dependencies belong to
+view-wgpu; optional control semantic translation and native accessibility adapters reuse the qualified AccessKit family. Native window dependencies belong to
 view-platform as well as platform probes. Future platform/render/control features get separate
 minimal/default/selected-full consumer cases when implemented; no placeholder
 features or empty production crates are added to simulate coverage.
@@ -55,3 +55,11 @@ Windows-only platform probe.
 features, license/MSRV metadata, package counts and duplicated families. It may
 download target dependencies. Root and consumer lockfiles are tracked. The declared
 minimum/compiler is 1.98.1; no lower compiler or unexecuted OS is advertised tested.
+
+Controls profiles: `cargo test -p view-controls --no-default-features --locked`
+checks behavior without a GPU or native loop; `--all-features` also compiles the
+native gallery and tests AccessKit translation. The independent consumer has
+separate `controls`, `accessibility`, and `controls-render` profiles. Facade
+controls do not enable the gallery or native windowing. `scripts/verify.ps1`
+runs these profiles and the CPU gallery; `-Gpu` adds explicit GPU readbacks and
+Windows hidden gallery presentation. See [control coverage](evidence/m2b-controls.md).

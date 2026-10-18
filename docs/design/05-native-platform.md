@@ -56,4 +56,11 @@ If pursued, web targets browser services and a canvas, not the desktop adapter. 
 
 ## Integration decision gate
 
+Implementation update: optional AccessKit snapshot/action handoff and Windows
+owner-scoped clipboard, context menu, file dialog and shell adapters now accompany
+the winit shell. File drop events carry paths without opening files. Native effects
+remain application actions. See [controls/native contracts](../guides/controls.md)
+and [coverage](../plan/evidence/m2b-controls.md); Linux/macOS desktop-service parity,
+Linux AT-SPI and physical native-control certification are not claimed.
+
 Qualify the selected windowing adapter against native frame behavior; two windows and modal ownership; DPI transition; IME; accessibility; host-owned loop integration; and backend surface lifetime. Qualify title-bar extension separately if its deferred scope is reopened. Document unsupported cases and dependency cost; a blocker triggers a recorded decision amendment. This future experiment requires implementation authorization; no platform code is introduced by this design set.

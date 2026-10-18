@@ -1,0 +1,29 @@
+[package]
+name = "view-controls"
+description = "Shared native control behaviors, styling and conformance for view."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-core.workspace = true
+view-text = { workspace = true, features = ["shaping"] }
+view-wgpu = { workspace = true, optional = true }
+accesskit = { workspace = true, optional = true }
+view-platform = { workspace = true, optional = true, features = ["text", "accessibility", "desktop-services"] }
+winit = { workspace = true, optional = true }
+
+[features]
+render = ["dep:view-wgpu"]
+accessibility = ["dep:accesskit"]
+gallery = ["render", "accessibility", "dep:view-platform", "dep:winit"]
+
+[[example]]
+name = "gallery"
+required-features = ["gallery"]
+
+[lints]
+workspace = true

@@ -224,10 +224,13 @@ impl PointerRouter {
     /// Reset router on window deactivation or blur, returning cancellation actions.
     pub fn reset(&mut self) -> Vec<RoutedPointerAction> {
         let mut actions = Vec::new();
-        if let Some(node) = self.captured.take() {
+        let captured = self.captured.take();
+        if let Some(node) = captured {
             actions.push(RoutedPointerAction::Cancel(node));
         }
-        if let Some((node, _)) = self.pressed.take() {
+        if let Some((node, _)) = self.pressed.take()
+            && captured != Some(node)
+        {
             actions.push(RoutedPointerAction::Cancel(node));
         }
         if let Some(node) = self.hovered.take() {
