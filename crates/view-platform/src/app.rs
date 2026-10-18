@@ -125,6 +125,7 @@ impl<H: PlatformHandler> ApplicationHandler for PlatformApp<H> {
             return;
         }
         let timestamp_ms = self.start_time.elapsed().as_millis() as u64;
+        let text = self.shell.keyboard_text(window_id, &event);
 
         if let Some((core_id, platform_event)) =
             self.shell
@@ -132,6 +133,18 @@ impl<H: PlatformHandler> ApplicationHandler for PlatformApp<H> {
             && let Err(err) =
                 self.handler
                     .on_window_event(&mut self.shell, event_loop, core_id, platform_event)
+        {
+            self.failure = Some(err);
+            event_loop.exit();
+        }
+        if self.failure.is_none()
+            && let Some((id, text)) = text
+            && let Err(err) = self.handler.on_window_event(
+                &mut self.shell,
+                event_loop,
+                id,
+                PlatformWindowEvent::TextInput(text),
+            )
         {
             self.failure = Some(err);
             event_loop.exit();

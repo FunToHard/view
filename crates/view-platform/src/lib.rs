@@ -6,8 +6,12 @@
 
 #![deny(missing_docs)]
 
+#[cfg(feature = "accessibility")]
+pub mod accessibility;
 pub mod app;
 pub mod com;
+#[cfg(feature = "desktop-services")]
+pub mod desktop;
 pub mod dpi;
 pub mod error;
 pub mod events;

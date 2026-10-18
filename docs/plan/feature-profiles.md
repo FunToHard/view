@@ -4,10 +4,20 @@
 | --- | --- | --- |
 | Facade default | `cargo check -p view --locked` | Public package alone |
 | Core alone | `cargo test -p view-core --no-default-features --locked` | Runtime contracts without facade or qualification dependencies |
+| Canvas contracts | `cargo test -p view-core --test canvas_contracts --locked` | CPU precision, pan/zoom, snapshot, hit and semantic contracts |
+| Independent canvas consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --test canvas --locked --target-dir target/consumer` | Canvas facade without optional backend features |
 | Harness alone | `cargo test -p view-testing --no-default-features --locked` | Controlled driver over public core |
 | Headless example | `cargo run -p view-testing --example headless --locked` | Actions, region state and idle behavior |
 | Facade minimal | `cargo check -p view --no-default-features --locked` | No default feature dependency leak |
-| Facade all current features | `cargo check -p view --all-features --locked` | Includes optional editor and cosmic-text shaping |
+| Facade all current features | `cargo check -p view --all-features --locked` | Includes optional editor, shaping and wgpu 2D renderer |
+| Renderer CPU contracts | `cargo test -p view-wgpu --locked` | Graph, color, surface state and shared text visuals; no GPU implicit in tests |
+| Optional scene CPU | `cargo test -p view-wgpu --features scene --locked` | Camera, transform, mesh, revision and budget contracts without a GPU |
+| Optional scene GPU | `cargo run -p view-wgpu --features scene --example scene --locked -- dx12` | Explicit depth, clipping, composition, resize and device recreation readback |
+| Host embedding GPU | `cargo run -p view-wgpu --features scene --example embedded --locked -- dx12` | One host encoder/submission, independent scene/UI cadence, clipped viewports, scale/recreation and tiled brush proof |
+| Independent scene consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features scene --locked --target-dir target/consumer` | Optional facade scene API outside workspace feature unification |
+| Renderer hardware fixture | `cargo run -p view-wgpu --example offscreen --locked -- dx12` | Real rendering, pixel readback, cache and provider contracts |
+| Hidden native surface | `cargo run -p view-wgpu --example surface --locked -- --run-hidden dx12` | Explicit hidden-window acquire/submit/present and resize/suspend; no physical input |
+| Independent renderer consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features wgpu --locked --target-dir target/consumer` | Optional facade renderer outside root feature unification |
 | Text alone | `cargo test -p view-text --no-default-features --locked` | Shared editor without shaping |
 | Text shaping | `cargo test -p view-text --all-features --locked` | Owned-font shaping, wrapping, geometry and cache tests |
 | Platform text | `cargo test -p view-platform --features text --locked` | IME event adapter without physical input |
@@ -23,7 +33,8 @@ The independent consumer deliberately disables facade defaults. Its default grap
 contains only consumer, view and view-core; the consumer's optional `harness`
 feature adds view-testing; those profiles have zero registry dependencies.
 `text` adds view-text and unicode-segmentation. `text-shaping` additionally enables
-cosmic-text, tested through its separate consumer profile. The default binary executes a typed action through the facade;
+cosmic-text, tested through its separate consumer profile. `wgpu` adds view-wgpu,
+glyphon, lyon and bytemuck with the qualified wgpu/text family. The default binary executes a typed action through the facade;
 the harness profile tests a controlled input/commit through public interfaces.
 None of these profiles certifies native UI behavior. Core/testing remain featureless;
 the facade's `text` feature is opt-in.
@@ -32,8 +43,8 @@ All packages remain unpublished. Platform and dependency probes are development
 tools, not supported application APIs. Core has zero third-party dependencies and
 no feature flags; the harness depends only on core, and the facade adds view-text
 only when requested. view-text depends on core and unicode-segmentation, with
-cosmic-text behind the shaping feature. GPU/accessibility dependencies remain in
-qualification probes; native window dependencies belong to
+cosmic-text behind the shaping feature. GPU dependencies also belong to optional
+view-wgpu; optional control semantic translation and native accessibility adapters reuse the qualified AccessKit family. Native window dependencies belong to
 view-platform as well as platform probes. Future platform/render/control features get separate
 minimal/default/selected-full consumer cases when implemented; no placeholder
 features or empty production crates are added to simulate coverage.
@@ -50,3 +61,11 @@ Windows-only platform probe.
 features, license/MSRV metadata, package counts and duplicated families. It may
 download target dependencies. Root and consumer lockfiles are tracked. The declared
 minimum/compiler is 1.98.1; no lower compiler or unexecuted OS is advertised tested.
+
+Controls profiles: `cargo test -p view-controls --no-default-features --locked`
+checks behavior without a GPU or native loop; `--all-features` also compiles the
+native gallery and tests AccessKit translation. The independent consumer has
+separate `controls`, `accessibility`, and `controls-render` profiles. Facade
+controls do not enable the gallery or native windowing. `scripts/verify.ps1`
+runs these profiles and the CPU gallery; `-Gpu` adds explicit GPU readbacks and
+Windows hidden gallery presentation. See [control coverage](evidence/m2b-controls.md).

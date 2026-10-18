@@ -15,3 +15,13 @@ Noto Sans, Noto Sans Hebrew and Noto Sans Arabic from the qualified cosmic-text
 `NotoSans-LICENSE` is retained and hashed. They are owned shaping inputs rather
 than installed-font goldens. No emoji font is bundled; missing glyphs are observable.
 No images or user/network recordings are bundled.
+
+The optional scene GPU example (`crates/view-wgpu/examples/scene.rs`) constructs
+original analytic quad meshes and fixed camera/material values in source. It uses
+no asset files, randomness or installed resources; first-party MIT OR Apache-2.0
+applies. Expected pixels are analytic assertions, not downloaded image goldens.
+
+`crates/view-wgpu/examples/embedded.rs` and its `support/brush.rs` use original
+analytic scene/host shaders and bounded generated 16×16 brush tiles. Their fixed
+12-tick clock and pixel assertions require no assets, randomness, personal data
+or native input. Generated captures/logs stay under `target/verification`.

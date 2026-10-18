@@ -40,6 +40,16 @@ try {
     Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-text','--no-default-features','--locked')
+    Invoke-Cargo @('test','-p','view-wgpu','--locked')
+    Invoke-Cargo @('clippy','-p','view-wgpu','--all-targets','--features','scene','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-wgpu','--features','scene','--locked')
+    Invoke-Cargo @('doc','-p','view-wgpu','--features','scene','--no-deps','--locked')
+    Invoke-Cargo @('test','-p','view-controls','--no-default-features','--locked')
+    Invoke-Cargo @('clippy','-p','view-controls','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-controls','--all-features','--locked')
+    Invoke-Cargo @('test','-p','view-controls','--features','gallery','--example','gallery','--locked')
+    Invoke-Cargo @('doc','-p','view-controls','--all-features','--no-deps','--locked')
+    Invoke-Cargo @('run','-p','view-controls','--features','gallery','--example','gallery','--locked','--','--headless')
     Invoke-Cargo @('clippy','-p','view-text','-p','view-platform','--all-targets','--all-features','--locked','--','-D','warnings')
     Invoke-Cargo @('test','-p','view-text','-p','view-platform','--all-features','--locked')
     Invoke-Cargo @('doc','-p','view-text','-p','view-platform','--all-features','--no-deps','--locked')
@@ -61,12 +71,25 @@ try {
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','harness','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text-shaping','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','wgpu','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','scene','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','controls','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','accessibility','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','controls-render','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--all-features','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('fmt','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--','--check')
     $hostTriple = ($compiler | Where-Object { $_ -like 'host: *' }) -replace '^host: ', ''
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple
     if ($IsWindows) { Invoke-Cargo @('run','-p','platform-probe','--locked') }
-    if ($Gpu) { Invoke-Cargo @('run','-p','dependency-probe','--bin','gpu','--locked','--',$Backend) }
+    if ($Gpu) {
+        Invoke-Cargo @('run','-p','dependency-probe','--bin','gpu','--locked','--',$Backend)
+        Invoke-Cargo @('run','-p','view-wgpu','--example','offscreen','--locked','--',$Backend)
+        Invoke-Cargo @('run','-p','view-wgpu','--features','scene','--example','scene','--locked','--',$Backend)
+        Invoke-Cargo @('run','-p','view-wgpu','--features','scene','--example','embedded','--locked','--',$Backend)
+        Invoke-Cargo @('run','-p','view-controls','--features','gallery','--example','gallery','--locked','--','--gpu',$Backend)
+        if ($IsWindows) { Invoke-Cargo @('run','-p','view-controls','--features','gallery','--example','gallery','--locked','--','--run-hidden',$Backend) }
+        if ($IsWindows) { Invoke-Cargo @('run','-p','view-wgpu','--example','surface','--locked','--','--run-hidden',$Backend) }
+    }
 } catch {
     Write-Host $_ -ForegroundColor Red
     $exitStatus = 1

@@ -6,7 +6,7 @@ A Rust framework being designed for native desktop applications that combine ret
 
 The intended applications include game-engine editors, IDEs, image editors, and other demanding creative and development tools. Native platform behavior, extensibility, automation, and measurable performance are design requirements.
 
-**Status: M1A headless runtime complete; design baseline 0.4.** The unpublished `view` facade exposes dependency-free `view-core` ownership, keyed reconciliation, typed actions, cancellation, demand scheduling and committed structural snapshots. `view-testing` provides controlled time/input and service fixtures. Native input, layout, semantics, controls and rendering remain later milestones. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Runtime CPU tests passed on Windows x64, Linux x64 and macOS ARM64; M0 infrastructure gates remain open. Actual coverage is recorded in the implementation checklist.
+**Status: runtime, native shell, shared text editing, preview controls, optional 2D/3D rendering and host-embedding proofs implemented; design baseline 0.4.** The unpublished `view` facade exposes dependency-free core ownership, layout, input and committed semantics. Optional text/shaping and wgpu rendering features add editing and SDR composition; the `scene` feature adds basic depth-tested scenes and picking. Native IME/physical-input certification remains open. Rust 1.98.1 and MIT OR Apache-2.0 licensing are configured. Earlier runtime/text CPU tests passed on Windows, Linux and macOS; rendering/embedding have local Windows GPU evidence, with Linux/macOS graphics coverage still open. Actual coverage is recorded in the implementation checklist.
 
 Start with the [design index](docs/design/README.md). The first delivery target is Windows; Linux and macOS participate in CI testing with explicitly recorded coverage limitations.
 
@@ -19,6 +19,18 @@ Completed setup, remaining work and deferred expansions are recorded separately.
 For the implemented headless API, start with the
 [runtime guide](docs/guides/headless-runtime.md) and run
 `cargo run -p view-testing --example headless --locked`.
+
+For 2D paint, text, images, layers and providers, see the
+[rendering guide](docs/guides/rendering.md). The explicit offscreen fixture is
+`cargo run -p view-wgpu --example offscreen --locked -- dx12`.
+
+For controls, styling, accessibility and the interactive gallery, see the
+[controls guide](docs/guides/controls.md) and [preliminary evidence](docs/plan/evidence/m2b-controls.md).
+
+For canvas, scene picking, drag/undo, viewport scheduling and host-owned rendering,
+see the [canvas](docs/guides/canvas.md), [scene](docs/guides/scene.md) and
+[embedding](docs/guides/embedding.md) guides. Run the explicit offscreen host proof:
+`cargo run -p view-wgpu --features scene --example embedded --locked -- dx12`.
 
 ## Development
 

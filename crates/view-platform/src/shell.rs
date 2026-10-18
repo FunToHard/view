@@ -40,6 +40,8 @@ pub struct WindowStateSnapshot {
 
 /// The platform shell managing multi-window ownership, modal routing, and native window lifecycle.
 pub struct PlatformShell {
+    #[cfg(feature = "accessibility")]
+    accessibility: HashMap<WindowId, crate::accessibility::NativeAccessibility>,
     windows: HashMap<WindowId, PlatformWindow>,
     winit_to_core: HashMap<WinitWindowId, WindowId>,
     input_trackers: HashMap<WindowId, InputStateTracker>,
@@ -56,6 +58,8 @@ impl PlatformShell {
     /// Create a new, empty platform shell.
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "accessibility")]
+            accessibility: HashMap::new(),
             windows: HashMap::new(),
             winit_to_core: HashMap::new(),
             input_trackers: HashMap::new(),
@@ -70,6 +74,9 @@ impl PlatformShell {
         id: WindowId,
         attributes: WindowAttributes,
     ) -> Result<&mut PlatformWindow, PlatformError> {
+        if self.windows.contains_key(&id) {
+            return Err(PlatformError::InvalidWindow(id));
+        }
         let title = attributes.title.clone();
         let winit_window = event_loop
             .create_window(attributes)
@@ -89,6 +96,39 @@ impl PlatformShell {
     /// Number of active native windows in the shell.
     pub fn window_count(&self) -> usize {
         self.windows.len()
+    }
+
+    /// Install the adapter on an initially hidden window before showing it.
+    #[cfg(feature = "accessibility")]
+    pub fn enable_accessibility(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        id: WindowId,
+        revision: view_core::Revision,
+        tree: accesskit::TreeUpdate,
+    ) -> Result<(), PlatformError> {
+        if self.accessibility.contains_key(&id) {
+            return Err(PlatformError::InvalidWindow(id));
+        }
+        let window = self
+            .windows
+            .get(&id)
+            .ok_or(PlatformError::InvalidWindow(id))?
+            .shared_window();
+        self.accessibility.insert(
+            id,
+            crate::accessibility::NativeAccessibility::new(event_loop, window, revision, tree)?,
+        );
+        Ok(())
+    }
+
+    /// Borrow the native semantic adapter to publish or drain actions.
+    #[cfg(feature = "accessibility")]
+    pub fn accessibility_mut(
+        &mut self,
+        id: WindowId,
+    ) -> Option<&mut crate::accessibility::NativeAccessibility> {
+        self.accessibility.get_mut(&id)
     }
 
     /// True if no windows are registered.
@@ -251,6 +291,8 @@ impl PlatformShell {
         id: WindowId,
     ) -> Result<Option<WindowStateSnapshot>, PlatformError> {
         let snapshot = self.snapshot_window(id);
+        #[cfg(feature = "accessibility")]
+        self.accessibility.remove(&id);
 
         let win = match self.windows.remove(&id) {
             Some(w) => w,
@@ -292,6 +334,10 @@ impl PlatformShell {
         let window_id = self.lookup_id(winit_id)?;
 
         let win = self.windows.get_mut(&window_id)?;
+        #[cfg(feature = "accessibility")]
+        if let Some(adapter) = self.accessibility.get_mut(&window_id) {
+            adapter.process_event(win.raw_window(), event);
+        }
         let scale_factor = win.dpi().scale_factor;
 
         // Update lifecycle & geometry on native updates
@@ -310,6 +356,7 @@ impl PlatformShell {
                 // Clear any held pointer buttons on focus loss
                 if let Some(tracker) = self.input_trackers.get_mut(&window_id) {
                     let _ = tracker.cancel_held_buttons();
+                    tracker.composing = false;
                 }
             }
             WindowEvent::Moved(_) => {
@@ -347,7 +394,12 @@ impl PlatformShell {
         // Discard pointer and keyboard input if window is blocked by modal
         if is_blocked {
             match &platform_event {
-                PlatformWindowEvent::Pointer(_) | PlatformWindowEvent::Keyboard(_) => {
+                PlatformWindowEvent::Pointer(_)
+                | PlatformWindowEvent::Keyboard(_)
+                | PlatformWindowEvent::Ime(_)
+                | PlatformWindowEvent::FileDropped(_)
+                | PlatformWindowEvent::FileHovered(_)
+                | PlatformWindowEvent::FileHoverCancelled => {
                     return None;
                 }
                 _ => {}
@@ -355,5 +407,19 @@ impl PlatformShell {
         }
 
         Some((window_id, platform_event))
+    }
+
+    /// Additional committed text accompanying a keyboard event. The host routes
+    /// it only to a text control; command processing does not insert key labels.
+    pub fn keyboard_text(
+        &self,
+        id: WinitWindowId,
+        event: &WindowEvent,
+    ) -> Option<(WindowId, String)> {
+        let id = self.lookup_id(id)?;
+        if self.windows.get(&id)?.is_blocked_by_modal() {
+            return None;
+        }
+        crate::events::keyboard_text(event, self.input_trackers.get(&id)?).map(|text| (id, text))
     }
 }

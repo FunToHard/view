@@ -14,6 +14,41 @@ Revision 0.3: the owner asks for low-friction UI authoring by models without vie
 
 ## Selected architecture
 
+M3B completion refinement, 2026-10-19: P-04/P-05/P-07 use CPU triangle picking
+with owner-qualified latest requests and scene/camera/viewport revisions, normal
+runtime capture plus document-neutral drag commits, and host-clock per-owner
+viewport scheduling. P-01/P-03 are preserved: app scene selection/undo remain
+outside UI identity, and previews do not execute document effects. Core now
+exposes explicit host-service capability/publication contracts and counts layout
+traversals separately from scene work. The adapter accepts validated host targets
+and records optional readback into a host encoder without taking submission
+authority. Reason: prove complete embedding and mixed UI/scene cadence without
+adding an executor, native dependency, ECS or scene-translation requirement.
+Contracts and compatibility: [embedding guide](../guides/embedding.md).
+Acceptance and uncovered native/platform layers: [M3B report](../plan/evidence/m3b-completion.md).
+
+M3B-02 implementation refinement, 2026-10-18: P-04/Q-05 now has the opt-in
+`view-wgpu/scene` module and `view/scene` facade feature, without new dependencies
+or a separate crate. The minimal profile is right-handed, perspective 0..1 depth,
+affine models, indexed triangle meshes and opaque unlit sRGB materials. Reason:
+prove scene rendering through the qualified provider/device boundary before
+picking or application tools. ProviderSession now supports an opt-in private
+Depth32Float offscreen attachment; direct contributions remain color-only.
+Immutable snapshots/buffers and idle-only provider mutation preserve submission
+ownership and bounded resources. Contracts: [scene guide](../guides/scene.md).
+Acceptance/coverage: [M3B-02 evidence](../plan/evidence/m3b-02-scene.md).
+
+M3B-01 implementation refinement, 2026-10-18: P-04/Q-15 now has a
+backend-independent `view_core::canvas` module, re-exported as `view::canvas`.
+It uses f64 canvas document coordinates and rebases before checked f32 conversion,
+preserving existing f32 geometry compatibility. One bounded, revisioned record
+snapshot supplies drawing descriptions, rectangular hits and semantic regions.
+The application owns document IDs/payloads; runtime node identity, focus, capture,
+semantic publication and effects retain their existing ownership. Reason: begin
+the canvas proof without introducing GPU dependencies or a parallel UI lifecycle.
+No new dependency or crate is needed. Contracts: [canvas guide](../guides/canvas.md).
+Acceptance and coverage limits: [M3B-01 evidence](../plan/evidence/m3b-01-canvas.md).
+
 P-01 through P-24 are adopted as the planning baseline. Historical proposal labels in earlier revision notes explain how the design evolved; they are not unresolved implementation alternatives. The resolution table below is authoritative. Backend qualification and measurements are implementation evidence tasks; failing a qualification requires a documented decision amendment rather than quietly changing architecture.
 
 | ID | Proposal | Rationale | Status |
@@ -202,6 +237,42 @@ execution is recorded there; performance and native behavior are not inferred
 from headless checks.
 
 ### Revision procedure
+
+M2B implementation refinement, 2026-10-18: P-21/Q-20 now has `view-controls`
+with persistent shared behavior sessions, typed resolved styles, and optional
+render/accessibility features. Runtime node IDs remain the sole control identity;
+logical pointer capture is exposed with liveness, visibility and modal checks.
+AccessKit IDs are monotonic adapter mappings, not a second ownership model.
+Native callbacks read complete committed snapshots and queue revision-tagged
+actions for UI-thread validation. Full semantic updates express removal through
+parent child lists. Desktop effects are explicit application actions; Win32/COM
+ownership and thread checks stay in view-platform. Reason: compose the existing
+editor/runtime with multiple decorations and native services without adding
+platform dependencies to core or applying editing effects during rendering.
+Acceptance, dependency costs and uncovered native requirements are recorded in
+[M2B evidence](../plan/evidence/m2b-controls.md); public contracts are in the
+[controls guide](../guides/controls.md). This does not certify physical native
+input, Linux AT-SPI, or native text-range geometry. M2B-11 remains open.
+
+M3A implementation refinement, 2026-10-08: P-04/P-05/P-07 and Q-06/Q-08/Q-14
+now use optional `view-wgpu`, keeping core backend-independent. The initial paint
+profile is single-sample RGBA/BGRA sRGB with linear premultiplied blending,
+alpha-correct image filtering, rectangular committed-window clips, lyon geometry,
+and isolated opacity layers. Text shares the exact cosmic buffer used by editing;
+font collection identity scopes glyph atlas epochs. Whole-epoch eviction and
+immutable GPU buffers avoid live slot reassignment; submission callbacks retain
+bounded frame leases. Glyph reservations conservatively use the device atlas
+limit rather than invent residency measurements. Captures copy in the paint
+submission, preserving the captured revision across later target reuse.
+
+Reason: establish executable 2D/provider lifetime contracts before controls and
+3D proofs. Providers have explicit direct/offscreen attachment profiles, pass
+dependency validation and host submission acknowledgement; errors/recreation are
+observable. Host device callbacks remain a deliberate ownership choice. No new
+registry family is introduced; the qualified stack is now a production optional
+adapter. API/limitations: [rendering guide](../guides/rendering.md). Acceptance and
+platform gaps: [M3A evidence](../plan/evidence/m3a-renderer.md). M3A-14 remains open
+without Linux/macOS graphics execution; neither M0 infrastructure nor M3B is closed.
 
 M2A implementation refinement, 2026-10-08: P-21/Q-20 uses grapheme-safe committed
 editing, scalar-indexed transient preedit, owner-local revision preconditions and

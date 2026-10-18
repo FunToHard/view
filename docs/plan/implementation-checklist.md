@@ -1,6 +1,6 @@
 # Ordered implementation checklist
 
-Baseline: design revision 0.4. Updated: 2026-10-08. This is the progress checklist
+Baseline: design revision 0.4. Updated: 2026-10-19. This is the progress checklist
 for the complete selected developer preview, followed by the deferred roadmap.
 Creating this checklist does not execute its tasks.
 
@@ -31,10 +31,11 @@ and hidden native create/close passed; these do not certify the UI runtime, phys
 input or text rendering. M0 remains open at its required
 infrastructure/native-shell gates.
 
-**M1A-01–M1A-14 are complete** with [headless runtime and three-platform CPU
-evidence](evidence/m1a-runtime.md). The owner skipped remaining M0 work for this
-increment; those gates stay open. Phase 2 (M1B) native geometry/input/shell work
-has not been implemented by this increment.
+M1A/M1B/M2A implementations and the M3A renderer/M2B controls are recorded below.
+Phase 6 (M3B) implementation and local CPU/DX12 proofs are complete; see
+[completion evidence and coverage limits](evidence/m3b-completion.md).
+The remaining M0 infrastructure gates, M3A-14 graphics coverage and M2B-11 native
+control certification remain open. Earlier implementation does not waive them.
 
 ## Sequence at a glance
 
@@ -155,40 +156,44 @@ M2A evidence: [shared text implementation and verification](evidence/m2a-text-ed
 Sources: [rendering](../design/04-rendering-and-interop.md).
 Capabilities: C-08, C-09, C-12 foundations. Acceptance: T-07, T-10–T-12 at applicable layers.
 
-- [ ] **M3A-01** Introduce view-wgpu; negotiate adapter/device features, limits, formats and error reporting without leaking wgpu into core controls.
-- [ ] **M3A-02** Implement framework-owned surfaces and offscreen targets, acquisition/presentation lifecycle, resize coalescing and zero-size/occlusion handling.
-- [ ] **M3A-03** Define paint/layer records and prepared snapshots with content revisions; preserve draw order and separate commit/submission/presentation observations.
-- [ ] **M3A-04** Implement WGSL pipelines and checked host data layouts for quads, images and selected primitives.
-- [ ] **M3A-05** Implement paths/fills/strokes through lyon, transforms, clipping and hit/paint coordinate agreement.
-- [ ] **M3A-06** Integrate glyphon text drawing with cosmic-text; render caret/selection/preedit while preserving ordering and clipping.
-- [ ] **M3A-07** Implement explicit SDR transfer/alpha conventions, premultiplied composition and isolated group opacity; preserve color metadata.
-- [ ] **M3A-08** Implement texture/buffer/glyph/geometry caches, budget accounting, eviction invalidation and submission-aware retirement.
-- [ ] **M3A-09** Implement provider negotiate/prepare/encode/compose/retire/resize/recreate phases and pass dependency validation; diagnose stale handles, cycles and undeclared writers.
-- [ ] **M3A-10** Implement offscreen and compatible existing-texture contributions with device/usage/format/sample/alpha/origin checks and resolve requirements.
-- [ ] **M3A-11** Implement the scoped direct-contribution path for compatible attachments/order; reject unsupported use or select the documented offscreen fallback.
-- [ ] **M3A-12** Implement device-generation invalidation, surface failure handling and provider recreation/error callbacks; avoid unconditional recovery promises.
-- [ ] **M3A-13** Add real offscreen GPU fixtures for shapes/text/clips/blending/layers/cache eviction and revision-tagged readback; record comparison tolerances.
-- [ ] **M3A-14** Execute graphics fixtures on provisioned Windows/Linux/macOS backends; classify software rendering separately and keep missing required coverage open.
+- [x] **M3A-01** Introduce view-wgpu; negotiate adapter/device features, limits, formats and error reporting without leaking wgpu into core controls.
+- [x] **M3A-02** Implement framework-owned surfaces and offscreen targets, acquisition/presentation lifecycle, resize coalescing and zero-size/occlusion handling.
+- [x] **M3A-03** Define paint/layer records and prepared snapshots with content revisions; preserve draw order and separate commit/submission/presentation observations.
+- [x] **M3A-04** Implement WGSL pipelines and checked host data layouts for quads, images and selected primitives.
+- [x] **M3A-05** Implement paths/fills/strokes through lyon, transforms, clipping and hit/paint coordinate agreement.
+- [x] **M3A-06** Integrate glyphon text drawing with cosmic-text; render caret/selection/preedit while preserving ordering and clipping.
+- [x] **M3A-07** Implement explicit SDR transfer/alpha conventions, premultiplied composition and isolated group opacity; preserve color metadata.
+- [x] **M3A-08** Implement texture/buffer/glyph/geometry caches, budget accounting, eviction invalidation and submission-aware retirement.
+- [x] **M3A-09** Implement provider negotiate/prepare/encode/compose/retire/resize/recreate phases and pass dependency validation; diagnose stale handles, cycles and undeclared writers.
+- [x] **M3A-10** Implement offscreen and compatible existing-texture contributions with device/usage/format/sample/alpha/origin checks and resolve requirements.
+- [x] **M3A-11** Implement the scoped direct-contribution path for compatible attachments/order; reject unsupported use or select the documented offscreen fallback.
+- [x] **M3A-12** Implement device-generation invalidation, surface failure handling and provider recreation/error callbacks; avoid unconditional recovery promises.
+- [x] **M3A-13** Add real offscreen GPU fixtures for shapes/text/clips/blending/layers/cache eviction and revision-tagged readback; record comparison tolerances.
+- [ ] **M3A-14** Execute graphics fixtures on provisioned Windows/Linux/macOS backends; classify software rendering separately and keep missing required coverage open. Windows DX12/Vulkan executed locally; Linux/macOS GPU coverage remains open. See [M3A evidence](evidence/m3a-renderer.md).
+
+Implementation and verification for M3A-01–M3A-13: [M3A renderer evidence](evidence/m3a-renderer.md) and [supported rendering profile](../guides/rendering.md). This does not close M3A-14, M0 infrastructure, M3B, or native-control certification.
 
 ## 5. Complete standard controls and accessibility — M2 completion
 
 Sources: [control profiles](../design/13-controls-and-conformance.md), [platform](../design/05-native-platform.md).
 Capabilities: C-06, C-14, C-15, C-16, C-20, C-42. Acceptance: T-29–T-31 and applicable T-01/T-11/T-16.
 
-- [ ] **M2B-01** Introduce view-controls and reusable pressable/focusable/range/selection/popup/scroll behaviors, separate from decoration.
-- [ ] **M2B-02** Implement typed themes, inherited/local style resolution, interaction states and versioned resource reload with precise invalidation.
-- [ ] **M2B-03** Implement text labels, images and buttons; include keyboard activation, press cancellation, disabled state and semantics.
-- [ ] **M2B-04** Implement toggle/checkbox/radio controls with explicit mixed/group/exclusivity and keyboard policies.
-- [ ] **M2B-05** Compose TextInput and plain TextArea from the shared engine; implement selection/caret/preedit visuals, focus indication and native command/context-menu routing.
-- [ ] **M2B-06** Implement numeric fields/sliders with bounds, precision, intermediate-invalid text, keyboard steps and commit/cancel behavior.
-- [ ] **M2B-07** Implement scrollbars/views and virtualized list/tree selection/navigation with stable identity, bounded realization and virtual focus.
-- [ ] **M2B-08** Implement split panes, popup/menu/dialog primitives and command-palette composition needed by proofs; cover screen edges, nesting, Escape and focus return.
-- [ ] **M2B-09** Integrate AccessKit semantic updates and action routing; expose native focus/value/selection/text services where supported.
-- [ ] **M2B-10** Complete clipboard, drag-and-drop, scoped file-dialog and shell-activation service adapters required by the proofs; application actions own external effects.
+- [x] **M2B-01** Introduce view-controls and reusable pressable/focusable/range/selection/popup/scroll behaviors, separate from decoration.
+- [x] **M2B-02** Implement typed themes, inherited/local style resolution, interaction states and versioned resource reload with precise invalidation.
+- [x] **M2B-03** Implement text labels, images and buttons; include keyboard activation, press cancellation, disabled state and semantics.
+- [x] **M2B-04** Implement toggle/checkbox/radio controls with explicit mixed/group/exclusivity and keyboard policies.
+- [x] **M2B-05** Compose TextInput and plain TextArea from the shared engine; implement selection/caret/preedit visuals, focus indication and native command/context-menu routing.
+- [x] **M2B-06** Implement numeric fields/sliders with bounds, precision, intermediate-invalid text, keyboard steps and commit/cancel behavior.
+- [x] **M2B-07** Implement scrollbars/views and virtualized list/tree selection/navigation with stable identity, bounded realization and virtual focus.
+- [x] **M2B-08** Implement split panes, popup/menu/dialog primitives and command-palette composition needed by proofs; cover screen edges, nesting, Escape and focus return.
+- [x] **M2B-09** Integrate AccessKit semantic updates and action routing; expose native focus/value/selection/text services where supported.
+- [x] **M2B-10** Complete clipboard, drag-and-drop, scoped file-dialog and shell-activation service adapters required by the proofs; application actions own external effects.
 - [ ] **M2B-11** Test actual IME candidate/preedit placement across clipping, scrolling and DPI; test composition with external value updates and unmount.
-- [ ] **M2B-12** Build a visually distinct text field using the same editor session; run identical mandatory profiles for both presentations.
-- [ ] **M2B-13** Build the control gallery with states and behavior matrices; include lifecycle, read-only-plus-copy, selection-plus-IME and virtualization-plus-focus cases.
-- [ ] **M2B-14** Publish preliminary per-control/profile/platform reports; close render/native checks now available and leave physical E2E certification to Phase 8.
+- [x] **M2B-12** Build a visually distinct text field using the same editor session; run identical mandatory profiles for both presentations.
+- [x] **M2B-13** Build the control gallery with states and behavior matrices; include lifecycle, read-only-plus-copy, selection-plus-IME and virtualization-plus-focus cases.
+- [x] **M2B-14** Publish preliminary per-control/profile/platform reports; close render/native checks now available and leave physical E2E certification to Phase 8.
+
+Implementation and preliminary verification: [M2B controls evidence](evidence/m2b-controls.md) and [control contracts](../guides/controls.md). M2B-11 remains open: actual OS IME candidate placement needs an explicitly selected desktop session. CPU, offscreen GPU and hidden-window checks do not certify physical input or assistive-technology behavior.
 
 This is the preview catalogue needed by the selected proofs. General tables,
 password fields and rich document editors are separate profiles to scope in the
@@ -200,16 +205,16 @@ Sources: [rendering](../design/04-rendering-and-interop.md).
 Capabilities: C-08, C-09, C-12, C-13, C-21; initial C-24 boundaries.
 Acceptance: T-06–T-12.
 
-- [ ] **M3B-01** Implement Canvas2D document/view transforms, pan/zoom, hit/semantic regions and retained/on-demand draw records with explicit precision conversion.
-- [ ] **M3B-02** Implement the minimal camera/mesh/transform/basic-material/depth scene provider; document projection, handedness, depth and unit conventions.
-- [ ] **M3B-03** Implement picking with scene/camera/viewport revisions; discard stale asynchronous results and expose named object actions separately from pointer picking.
-- [ ] **M3B-04** Implement UI/gizmo overlays, pointer capture and drag preview/commit/cancel; route one completed gesture into one app-owned undo transaction.
-- [ ] **M3B-05** Schedule independent continuous viewport frames beside idle retained/immediate inspectors; implement visibility and frame-demand policies.
-- [ ] **M3B-06** Implement host-owned loop/device/target integration with one event/submission/presentation authority and explicit native/accessibility service handoff.
-- [ ] **M3B-07** Publish the wgpu compatibility boundary and implement a host-embedding example without a second loop/device or mandatory scene translation.
-- [ ] **M3B-08** Exercise multiple clipped/resized viewports, cache/resource retirement, DPI movement and device recreation; demonstrate no required CPU composition copy.
-- [ ] **M3B-09** Build a bounded tiled-canvas/brush-preview fixture with app-owned document coordinates and undo; pressure/tilt is capability-reported and needs its own hardware evidence if advertised.
-- [ ] **M3B-10** Record UI/scene/composition counters separately; pass the mixed static-UI/animated-scene and host-owned rendering scenarios.
+- [x] **M3B-01** Implement Canvas2D document/view transforms, pan/zoom, hit/semantic regions and retained/on-demand draw records with explicit precision conversion. Evidence: [CPU contracts, example and independent consumer](evidence/m3b-01-canvas.md); [rendered tile/preview and drag/undo follow-up](evidence/m3b-completion.md).
+- [x] **M3B-02** Implement the minimal camera/mesh/transform/basic-material/depth scene provider; document projection, handedness, depth and unit conventions. Evidence: [CPU contracts, independent consumer and Windows DX12 depth/composition checks](evidence/m3b-02-scene.md). Optional opaque unlit profile; Linux/macOS GPU coverage remains open.
+- [x] **M3B-03** Implement picking with scene/camera/viewport revisions; discard stale asynchronous results and expose named object actions separately from pointer picking. Evidence: [CPU triangle queries, worker/stale-result and named-command tests](evidence/m3b-completion.md).
+- [x] **M3B-04** Implement UI/gizmo overlays, pointer capture and drag preview/commit/cancel; route one completed gesture into one app-owned undo transaction. Evidence: [rendered gizmo, normal runtime capture and typed undo/cancel tests](evidence/m3b-completion.md); no physical-input certification.
+- [x] **M3B-05** Schedule independent continuous viewport frames beside idle retained/immediate inspectors; implement visibility and frame-demand policies. Evidence: [120-tick CPU test and mixed GPU host fixture](evidence/m3b-completion.md), with unchanged build/layout/commit counters.
+- [x] **M3B-06** Implement host-owned loop/device/target integration with one event/submission/presentation authority and explicit native/accessibility service handoff. Evidence: [host-owned device/targets and one submission per frame, service capability/publication tests](evidence/m3b-completion.md). Offscreen host has no presentation; desktop service execution remains separate coverage.
+- [x] **M3B-07** Publish the wgpu compatibility boundary and implement a host-embedding example without a second loop/device or mandatory scene translation. Evidence: [embedding guide](../guides/embedding.md), [independent host shader and same-device composition proof](evidence/m3b-completion.md).
+- [x] **M3B-08** Exercise multiple clipped/resized viewports, cache/resource retirement, DPI movement and device recreation; demonstrate no required CPU composition copy. Evidence: [Windows DX12 host fixture](evidence/m3b-completion.md), including scripted 1x/2x scale changes and explicit device replacement. Actual monitor movement and Linux/macOS GPU execution remain uncovered; this checkbox records implementation/local fixture coverage only.
+- [x] **M3B-09** Build a bounded tiled-canvas/brush-preview fixture with app-owned document coordinates and undo; pressure/tilt is capability-reported and needs its own hardware evidence if advertised. Evidence: [tile/preview/history budget, negative-boundary, atomic failure and GPU stroke tests](evidence/m3b-completion.md). Pressure and tilt explicitly unsupported.
+- [x] **M3B-10** Record UI/scene/composition counters separately; pass the mixed static-UI/animated-scene and host-owned rendering scenarios. Evidence: [recorded frame/submission counts and zero UI build/layout/commit deltas](evidence/m3b-completion.md); no frame-rate benchmark claim.
 
 ## 7. Finish authoring, network UI and application proofs — M4
 

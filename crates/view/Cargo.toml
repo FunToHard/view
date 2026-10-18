@@ -13,10 +13,17 @@ publish = false
 [dependencies]
 view-core.workspace = true
 view-text = { workspace = true, optional = true }
+view-wgpu = { workspace = true, optional = true }
+view-controls = { workspace = true, optional = true }
 
 [features]
 text = ["dep:view-text"]
 text-shaping = ["text", "view-text/shaping"]
+wgpu = ["dep:view-wgpu", "text-shaping"]
+scene = ["wgpu", "view-wgpu/scene"]
+controls = ["dep:view-controls", "text-shaping"]
+controls-render = ["controls", "wgpu", "view-controls/render"]
+accessibility = ["controls", "view-controls/accessibility"]
 
 [lints]
 workspace = true
