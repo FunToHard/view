@@ -4,11 +4,17 @@
 | --- | --- | --- |
 | Facade default | `cargo check -p view --locked` | Public package alone |
 | Core alone | `cargo test -p view-core --no-default-features --locked` | Runtime contracts without facade or qualification dependencies |
+| Canvas contracts | `cargo test -p view-core --test canvas_contracts --locked` | CPU precision, pan/zoom, snapshot, hit and semantic contracts |
+| Independent canvas consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --test canvas --locked --target-dir target/consumer` | Canvas facade without optional backend features |
 | Harness alone | `cargo test -p view-testing --no-default-features --locked` | Controlled driver over public core |
 | Headless example | `cargo run -p view-testing --example headless --locked` | Actions, region state and idle behavior |
 | Facade minimal | `cargo check -p view --no-default-features --locked` | No default feature dependency leak |
 | Facade all current features | `cargo check -p view --all-features --locked` | Includes optional editor, shaping and wgpu 2D renderer |
 | Renderer CPU contracts | `cargo test -p view-wgpu --locked` | Graph, color, surface state and shared text visuals; no GPU implicit in tests |
+| Optional scene CPU | `cargo test -p view-wgpu --features scene --locked` | Camera, transform, mesh, revision and budget contracts without a GPU |
+| Optional scene GPU | `cargo run -p view-wgpu --features scene --example scene --locked -- dx12` | Explicit depth, clipping, composition, resize and device recreation readback |
+| Host embedding GPU | `cargo run -p view-wgpu --features scene --example embedded --locked -- dx12` | One host encoder/submission, independent scene/UI cadence, clipped viewports, scale/recreation and tiled brush proof |
+| Independent scene consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features scene --locked --target-dir target/consumer` | Optional facade scene API outside workspace feature unification |
 | Renderer hardware fixture | `cargo run -p view-wgpu --example offscreen --locked -- dx12` | Real rendering, pixel readback, cache and provider contracts |
 | Hidden native surface | `cargo run -p view-wgpu --example surface --locked -- --run-hidden dx12` | Explicit hidden-window acquire/submit/present and resize/suspend; no physical input |
 | Independent renderer consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features wgpu --locked --target-dir target/consumer` | Optional facade renderer outside root feature unification |

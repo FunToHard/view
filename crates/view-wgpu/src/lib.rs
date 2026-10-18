@@ -1,4 +1,5 @@
-//! SDR 2D rendering. All coordinates are logical pixels until preparation.
+//! SDR 2D rendering and an optional basic 3D scene provider.
+//! 2D coordinates are logical pixels until preparation; scenes use app world units.
 //! GPU objects are scoped to a context; prepared frames own their resources.
 #![forbid(unsafe_code)]
 
@@ -6,6 +7,9 @@ mod context;
 mod paint;
 mod provider;
 mod renderer;
+/// Optional minimal opaque 3D scene provider, using the shared device and session.
+#[cfg(feature = "scene")]
+pub mod scene;
 mod surface;
 pub use context::*;
 pub use paint::*;

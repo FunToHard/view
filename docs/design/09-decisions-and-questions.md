@@ -14,6 +14,41 @@ Revision 0.3: the owner asks for low-friction UI authoring by models without vie
 
 ## Selected architecture
 
+M3B completion refinement, 2026-10-19: P-04/P-05/P-07 use CPU triangle picking
+with owner-qualified latest requests and scene/camera/viewport revisions, normal
+runtime capture plus document-neutral drag commits, and host-clock per-owner
+viewport scheduling. P-01/P-03 are preserved: app scene selection/undo remain
+outside UI identity, and previews do not execute document effects. Core now
+exposes explicit host-service capability/publication contracts and counts layout
+traversals separately from scene work. The adapter accepts validated host targets
+and records optional readback into a host encoder without taking submission
+authority. Reason: prove complete embedding and mixed UI/scene cadence without
+adding an executor, native dependency, ECS or scene-translation requirement.
+Contracts and compatibility: [embedding guide](../guides/embedding.md).
+Acceptance and uncovered native/platform layers: [M3B report](../plan/evidence/m3b-completion.md).
+
+M3B-02 implementation refinement, 2026-10-18: P-04/Q-05 now has the opt-in
+`view-wgpu/scene` module and `view/scene` facade feature, without new dependencies
+or a separate crate. The minimal profile is right-handed, perspective 0..1 depth,
+affine models, indexed triangle meshes and opaque unlit sRGB materials. Reason:
+prove scene rendering through the qualified provider/device boundary before
+picking or application tools. ProviderSession now supports an opt-in private
+Depth32Float offscreen attachment; direct contributions remain color-only.
+Immutable snapshots/buffers and idle-only provider mutation preserve submission
+ownership and bounded resources. Contracts: [scene guide](../guides/scene.md).
+Acceptance/coverage: [M3B-02 evidence](../plan/evidence/m3b-02-scene.md).
+
+M3B-01 implementation refinement, 2026-10-18: P-04/Q-15 now has a
+backend-independent `view_core::canvas` module, re-exported as `view::canvas`.
+It uses f64 canvas document coordinates and rebases before checked f32 conversion,
+preserving existing f32 geometry compatibility. One bounded, revisioned record
+snapshot supplies drawing descriptions, rectangular hits and semantic regions.
+The application owns document IDs/payloads; runtime node identity, focus, capture,
+semantic publication and effects retain their existing ownership. Reason: begin
+the canvas proof without introducing GPU dependencies or a parallel UI lifecycle.
+No new dependency or crate is needed. Contracts: [canvas guide](../guides/canvas.md).
+Acceptance and coverage limits: [M3B-01 evidence](../plan/evidence/m3b-01-canvas.md).
+
 P-01 through P-24 are adopted as the planning baseline. Historical proposal labels in earlier revision notes explain how the design evolved; they are not unresolved implementation alternatives. The resolution table below is authoritative. Backend qualification and measurements are implementation evidence tasks; failing a qualification requires a documented decision amendment rather than quietly changing architecture.
 
 | ID | Proposal | Rationale | Status |

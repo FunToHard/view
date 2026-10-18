@@ -111,6 +111,11 @@ impl AttachmentContract {
 /// A provider must not submit or present through the shared context. Direct contributions are
 /// scoped to one compatible render pass; complex effects use offscreen output.
 pub trait RenderProvider {
+    /// Request a private single-sample Depth32Float attachment, cleared to 1.0.
+    /// Depth providers are offscreen-only; the session owns attachment lifetime.
+    fn requires_depth(&self) -> bool {
+        false
+    }
     fn negotiate(&mut self, contract: AttachmentContract) -> Result<ContributionMode, RenderError>;
     fn prepare(&mut self, context: &GpuContext, revision: Revision) -> Result<(), RenderError>;
     fn encode(&mut self, pass: &mut wgpu::RenderPass<'_>) -> Result<(), RenderError>;
@@ -128,6 +133,8 @@ pub struct ProviderSession<P> {
     mode: ContributionMode,
     pending: Vec<(Revision, std::sync::mpsc::Receiver<()>)>,
     awaiting_submission: Option<Revision>,
+    depth: Option<([u32; 2], wgpu::TextureView)>,
+    requires_depth: bool,
 }
 impl<P: RenderProvider> ProviderSession<P> {
     pub fn new(
@@ -138,6 +145,12 @@ impl<P: RenderProvider> ProviderSession<P> {
         contract.negotiate(ContributionMode::Offscreen)?;
         let requested = provider.negotiate(contract)?;
         let mode = contract.negotiate(requested)?;
+        let requires_depth = provider.requires_depth();
+        if requires_depth && mode != ContributionMode::Offscreen {
+            return Err(RenderError::Unsupported(
+                "depth providers require offscreen composition".into(),
+            ));
+        }
         provider.recreate(context)?;
         Ok(Self {
             provider,
@@ -146,10 +159,25 @@ impl<P: RenderProvider> ProviderSession<P> {
             mode,
             pending: Vec::new(),
             awaiting_submission: None,
+            depth: None,
+            requires_depth,
         })
     }
     pub fn mode(&self) -> ContributionMode {
         self.mode
+    }
+    /// Inspect provider state without changing encoded work.
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
+    /// Update a provider only after encoded work is discarded or acknowledged
+    /// and completed submissions are retired. Attachment requirements must stay
+    /// fixed for this session; create a new session to renegotiate them.
+    pub fn provider_mut(&mut self) -> Result<&mut P, RenderError> {
+        if self.awaiting_submission.is_some() || !self.pending.is_empty() {
+            return Err(RenderError::Invalid("provider has outstanding work".into()));
+        }
+        Ok(&mut self.provider)
     }
     pub fn resize(&mut self, size: [u32; 2]) -> Result<(), RenderError> {
         if self.awaiting_submission.is_some() {
@@ -172,6 +200,7 @@ impl<P: RenderProvider> ProviderSession<P> {
         self.generation = context.generation();
         self.pending.clear();
         self.awaiting_submission = None;
+        self.depth = None;
         Ok(())
     }
     /// Encode an offscreen contribution. Caller composes the resolved target via
@@ -198,8 +227,42 @@ impl<P: RenderProvider> ProviderSession<P> {
             },
         })];
         self.prepare(context, revision)?;
+        if self.requires_depth
+            && self
+                .depth
+                .as_ref()
+                .is_none_or(|(size, _)| *size != target.size)
+        {
+            let texture = context.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("view provider depth"),
+                size: wgpu::Extent3d {
+                    width: target.size[0],
+                    height: target.size[1],
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            self.depth = Some((target.size, texture.create_view(&Default::default())));
+        }
+        let depth_stencil_attachment =
+            self.depth
+                .as_ref()
+                .map(|(_, view)| wgpu::RenderPassDepthStencilAttachment {
+                    view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &attachments,
+            depth_stencil_attachment,
             ..Default::default()
         });
         let result = self.provider.encode(&mut pass);
@@ -213,6 +276,11 @@ impl<P: RenderProvider> ProviderSession<P> {
     }
     fn prepare(&mut self, context: &GpuContext, revision: Revision) -> Result<(), RenderError> {
         context.check(self.generation)?;
+        if self.provider.requires_depth() != self.requires_depth {
+            return Err(RenderError::Invalid(
+                "provider attachment requirements changed".into(),
+            ));
+        }
         if self.pending.len() >= 3 || self.awaiting_submission.is_some() {
             return Err(RenderError::BudgetExceeded);
         }

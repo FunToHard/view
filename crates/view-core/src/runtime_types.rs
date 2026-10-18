@@ -334,6 +334,8 @@ pub struct Counters {
     pub actions: u64,
     /// Region builder calls.
     pub builds: u64,
+    /// Completed window layout/geometry traversals, separate from viewport work.
+    pub layouts: u64,
     /// Published headless commits.
     pub commits: u64,
     /// Flushes that did no work.

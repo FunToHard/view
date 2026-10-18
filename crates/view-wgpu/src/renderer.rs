@@ -1057,7 +1057,20 @@ impl PreparedFrame {
         clear: Color,
     ) -> Result<Capture, RenderError> {
         let mut encoder = context.device.create_command_encoder(&Default::default());
-        self.encode(context, &mut encoder, target, clear)?;
+        let capture = self.encode_capture(context, &mut encoder, target, clear)?;
+        let index = context.queue.submit([encoder.finish()]);
+        capture.submitted(context, index)
+    }
+    /// Record painting and diagnostic readback in the host's encoder without
+    /// submitting it. Acknowledge the host's submission once with the result.
+    pub fn encode_capture(
+        self,
+        context: &GpuContext,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &RenderTarget,
+        clear: Color,
+    ) -> Result<EncodedCapture, RenderError> {
+        self.encode(context, encoder, target, clear)?;
         let row = (target.size[0] * 4).div_ceil(256) * 256;
         let bytes = u64::from(row) * u64::from(target.size[1]);
         if bytes > context.device.limits().max_buffer_size {
@@ -1081,14 +1094,36 @@ impl PreparedFrame {
             },
             target.texture.size(),
         );
-        let index = context.queue.submit([encoder.finish()]);
-        let submission = self.submitted(context, index)?;
-        Ok(Capture {
-            submission,
+        Ok(EncodedCapture {
+            frame: self,
             buffer,
             row,
             size: target.size,
             format: target.format,
+        })
+    }
+}
+/// Host-recorded readback. Dropping requires discarding its unsubmitted encoder.
+pub struct EncodedCapture {
+    frame: PreparedFrame,
+    buffer: wgpu::Buffer,
+    row: u32,
+    size: [u32; 2],
+    format: wgpu::TextureFormat,
+}
+impl EncodedCapture {
+    /// Call after the host submits the encoder; this method never submits.
+    pub fn submitted(
+        self,
+        context: &GpuContext,
+        index: wgpu::SubmissionIndex,
+    ) -> Result<Capture, RenderError> {
+        Ok(Capture {
+            submission: self.frame.submitted(context, index)?,
+            buffer: self.buffer,
+            row: self.row,
+            size: self.size,
+            format: self.format,
         })
     }
 }

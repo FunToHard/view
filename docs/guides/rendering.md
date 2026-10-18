@@ -107,6 +107,12 @@ That import checks the epoch, real wgpu device ownership under an error scope,
 usage, format/transfer, dimension, layer/mip count and sample count. Multisample
 providers resolve externally before import. No CPU copy is required.
 
+The optional [basic scene provider](scene.md) requests a private Depth32Float
+attachment for offscreen encoding. The session clears depth to 1 each pass and
+rebuilds it on extent/device changes. Providers without that request retain the
+color-only profile. `provider_mut` is available only after outstanding work is
+discarded or retired; attachment requirements stay fixed for the session.
+
 Direct contributions receive a fresh compatible render pass with `Load`, at the
 host's explicit ordering point. Single-sample SDR attachments are the supported
 profile; isolation selects the offscreen fallback. Providers establish all their

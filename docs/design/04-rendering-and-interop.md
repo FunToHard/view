@@ -58,6 +58,12 @@ Zero-copy means avoiding a required CPU copy, not zero bandwidth, zero synchroni
 
 ## First-party 2D scope proposal
 
+M3B-01 adds the CPU Canvas2D snapshot and precision boundary described in the
+[canvas guide](../guides/canvas.md). It supplies pan/zoom, ordered drawing payloads
+and matching rectangular hit/semantic regions. The [M3B completion report](../plan/evidence/m3b-completion.md)
+adds rendered tile/brush preview and headless drag/undo evidence, while keeping
+native T-08 input certification explicit.
+
 Provide transforms, paths, fills/strokes, text, images, clipping, layer opacity, pan/zoom, hit regions, and overlays. Use lyon tessellation and the selected cosmic-text/glyphon stack, qualified together with wgpu. Rectangles alone are insufficient for the intended tools.
 
 Design for tiled image/document content, async processing, dirty regions, and bounded texture caches. Image decoding, filtering, brush engines, and document formats are modules or application systems, not mandatory core dependencies. Preview and final-quality rendering may run at different cadences.
@@ -67,6 +73,12 @@ The initial color baseline is explicitly defined SDR composition with documented
 Keep document coordinates independent of viewport pixels. Large documents may need higher-precision coordinates and rebasing before GPU conversion; do not force every application model to store positions as screen-space f32 values. The exact public geometry types are a design evaluation item.
 
 ## First-party 3D scope proposal
+
+M3B-02 implements the optional opaque unlit camera/mesh/transform/depth provider.
+The [scene guide](../guides/scene.md) defines compiled conventions and resource
+ownership; [evidence](../plan/evidence/m3b-02-scene.md) records local CPU/DX12
+checks. [Embedding and interaction](../guides/embedding.md) now supply picking,
+overlays, drag/undo, independent scheduling and host-owned rendering proofs.
 
 A reference module should provide a camera, mesh/material submission, transforms, depth-tested rendering, picking, and UI/gizmo overlays. The first proof can use a simple material model; production PBR, shadows, skeletal animation, asset formats, and physics are separate feature decisions.
 

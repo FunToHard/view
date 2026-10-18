@@ -1,6 +1,6 @@
 # Ordered implementation checklist
 
-Baseline: design revision 0.4. Updated: 2026-10-08. This is the progress checklist
+Baseline: design revision 0.4. Updated: 2026-10-19. This is the progress checklist
 for the complete selected developer preview, followed by the deferred roadmap.
 Creating this checklist does not execute its tasks.
 
@@ -31,10 +31,11 @@ and hidden native create/close passed; these do not certify the UI runtime, phys
 input or text rendering. M0 remains open at its required
 infrastructure/native-shell gates.
 
-**M1A-01–M1A-14 are complete** with [headless runtime and three-platform CPU
-evidence](evidence/m1a-runtime.md). The owner skipped remaining M0 work for this
-increment; those gates stay open. Phase 2 (M1B) native geometry/input/shell work
-has not been implemented by this increment.
+M1A/M1B/M2A implementations and the M3A renderer/M2B controls are recorded below.
+Phase 6 (M3B) implementation and local CPU/DX12 proofs are complete; see
+[completion evidence and coverage limits](evidence/m3b-completion.md).
+The remaining M0 infrastructure gates, M3A-14 graphics coverage and M2B-11 native
+control certification remain open. Earlier implementation does not waive them.
 
 ## Sequence at a glance
 
@@ -204,16 +205,16 @@ Sources: [rendering](../design/04-rendering-and-interop.md).
 Capabilities: C-08, C-09, C-12, C-13, C-21; initial C-24 boundaries.
 Acceptance: T-06–T-12.
 
-- [ ] **M3B-01** Implement Canvas2D document/view transforms, pan/zoom, hit/semantic regions and retained/on-demand draw records with explicit precision conversion.
-- [ ] **M3B-02** Implement the minimal camera/mesh/transform/basic-material/depth scene provider; document projection, handedness, depth and unit conventions.
-- [ ] **M3B-03** Implement picking with scene/camera/viewport revisions; discard stale asynchronous results and expose named object actions separately from pointer picking.
-- [ ] **M3B-04** Implement UI/gizmo overlays, pointer capture and drag preview/commit/cancel; route one completed gesture into one app-owned undo transaction.
-- [ ] **M3B-05** Schedule independent continuous viewport frames beside idle retained/immediate inspectors; implement visibility and frame-demand policies.
-- [ ] **M3B-06** Implement host-owned loop/device/target integration with one event/submission/presentation authority and explicit native/accessibility service handoff.
-- [ ] **M3B-07** Publish the wgpu compatibility boundary and implement a host-embedding example without a second loop/device or mandatory scene translation.
-- [ ] **M3B-08** Exercise multiple clipped/resized viewports, cache/resource retirement, DPI movement and device recreation; demonstrate no required CPU composition copy.
-- [ ] **M3B-09** Build a bounded tiled-canvas/brush-preview fixture with app-owned document coordinates and undo; pressure/tilt is capability-reported and needs its own hardware evidence if advertised.
-- [ ] **M3B-10** Record UI/scene/composition counters separately; pass the mixed static-UI/animated-scene and host-owned rendering scenarios.
+- [x] **M3B-01** Implement Canvas2D document/view transforms, pan/zoom, hit/semantic regions and retained/on-demand draw records with explicit precision conversion. Evidence: [CPU contracts, example and independent consumer](evidence/m3b-01-canvas.md); [rendered tile/preview and drag/undo follow-up](evidence/m3b-completion.md).
+- [x] **M3B-02** Implement the minimal camera/mesh/transform/basic-material/depth scene provider; document projection, handedness, depth and unit conventions. Evidence: [CPU contracts, independent consumer and Windows DX12 depth/composition checks](evidence/m3b-02-scene.md). Optional opaque unlit profile; Linux/macOS GPU coverage remains open.
+- [x] **M3B-03** Implement picking with scene/camera/viewport revisions; discard stale asynchronous results and expose named object actions separately from pointer picking. Evidence: [CPU triangle queries, worker/stale-result and named-command tests](evidence/m3b-completion.md).
+- [x] **M3B-04** Implement UI/gizmo overlays, pointer capture and drag preview/commit/cancel; route one completed gesture into one app-owned undo transaction. Evidence: [rendered gizmo, normal runtime capture and typed undo/cancel tests](evidence/m3b-completion.md); no physical-input certification.
+- [x] **M3B-05** Schedule independent continuous viewport frames beside idle retained/immediate inspectors; implement visibility and frame-demand policies. Evidence: [120-tick CPU test and mixed GPU host fixture](evidence/m3b-completion.md), with unchanged build/layout/commit counters.
+- [x] **M3B-06** Implement host-owned loop/device/target integration with one event/submission/presentation authority and explicit native/accessibility service handoff. Evidence: [host-owned device/targets and one submission per frame, service capability/publication tests](evidence/m3b-completion.md). Offscreen host has no presentation; desktop service execution remains separate coverage.
+- [x] **M3B-07** Publish the wgpu compatibility boundary and implement a host-embedding example without a second loop/device or mandatory scene translation. Evidence: [embedding guide](../guides/embedding.md), [independent host shader and same-device composition proof](evidence/m3b-completion.md).
+- [x] **M3B-08** Exercise multiple clipped/resized viewports, cache/resource retirement, DPI movement and device recreation; demonstrate no required CPU composition copy. Evidence: [Windows DX12 host fixture](evidence/m3b-completion.md), including scripted 1x/2x scale changes and explicit device replacement. Actual monitor movement and Linux/macOS GPU execution remain uncovered; this checkbox records implementation/local fixture coverage only.
+- [x] **M3B-09** Build a bounded tiled-canvas/brush-preview fixture with app-owned document coordinates and undo; pressure/tilt is capability-reported and needs its own hardware evidence if advertised. Evidence: [tile/preview/history budget, negative-boundary, atomic failure and GPU stroke tests](evidence/m3b-completion.md). Pressure and tilt explicitly unsupported.
+- [x] **M3B-10** Record UI/scene/composition counters separately; pass the mixed static-UI/animated-scene and host-owned rendering scenarios. Evidence: [recorded frame/submission counts and zero UI build/layout/commit deltas](evidence/m3b-completion.md); no frame-rate benchmark claim.
 
 ## 7. Finish authoring, network UI and application proofs — M4
 

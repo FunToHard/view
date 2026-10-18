@@ -9,10 +9,12 @@
 #![deny(missing_docs)]
 
 mod arena;
+pub mod canvas;
 mod error;
 pub mod focus;
 pub mod geometry;
 pub mod hit_test;
+pub mod host;
 mod identity;
 pub mod input;
 pub mod layout;
@@ -21,6 +23,7 @@ mod runtime;
 mod runtime_types;
 pub mod scroll;
 pub mod semantics;
+pub mod viewport;
 
 pub use arena::Arena;
 pub use error::CoreError;

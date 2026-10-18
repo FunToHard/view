@@ -124,6 +124,57 @@ impl GpuContext {
     pub fn target(&self, size: [u32; 2]) -> Result<RenderTarget, RenderError> {
         self.target_format(size, wgpu::TextureFormat::Rgba8UnormSrgb)
     }
+    /// Import a host-created resolved SDR target on this device. The required
+    /// usages support painting, composition and explicit diagnostic readback.
+    /// Validation records but never submits a pass; the host retains authority.
+    pub async fn import_target(&self, texture: wgpu::Texture) -> Result<RenderTarget, RenderError> {
+        self.check(self.generation)?;
+        let size = [texture.width(), texture.height()];
+        validate_size(size, self.device.limits().max_texture_dimension_2d)?;
+        validate_format(texture.format())?;
+        if texture.sample_count() != 1
+            || texture.mip_level_count() != 1
+            || texture.depth_or_array_layers() != 1
+            || texture.dimension() != wgpu::TextureDimension::D2
+            || !texture.usage().contains(
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
+            )
+        {
+            return Err(RenderError::Unsupported(
+                "host target must be resolved sampleable/copyable SDR D2".into(),
+            ));
+        }
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let view = texture.create_view(&Default::default());
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+        }
+        let _recorded = encoder.finish();
+        if let Some(error) = scope.pop().await {
+            return Err(RenderError::Device(error.to_string()));
+        }
+        Ok(RenderTarget {
+            format: texture.format(),
+            texture,
+            view,
+            size,
+            generation: self.generation,
+        })
+    }
     pub fn target_format(
         &self,
         size: [u32; 2],

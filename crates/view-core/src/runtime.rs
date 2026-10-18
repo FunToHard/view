@@ -867,6 +867,7 @@ impl<M, A> Runtime<M, A> {
                         ClipChain::NONE
                     };
                     self.update_layout_hierarchy(root_id, root_clip, TransformChain::IDENTITY)?;
+                    self.counters.layouts = self.counters.layouts.saturating_add(1);
                 }
             }
 
