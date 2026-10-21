@@ -56,6 +56,7 @@ impl DesktopSession {
         let (sender, receiver) = mpsc::sync_channel::<Work>(8);
         let stop = Arc::new(AtomicBool::new(false));
         let flag = stop.clone();
+        let deadline = Instant::now() + timeout;
         let worker = thread::spawn(move || {
             struct ReleaseOwner;
             impl Drop for ReleaseOwner {
@@ -66,19 +67,24 @@ impl DesktopSession {
             let _owner = ReleaseOwner;
             let mut driver = driver;
             let mut held = BTreeSet::new();
-            let deadline = Instant::now() + timeout;
             let outcome = (|| {
                 loop {
-                    if flag.load(Ordering::Acquire) {
-                        return Ok(());
-                    }
                     if Instant::now() >= deadline {
                         return Err(Error::new(Code::Timeout, "desktop deadline"));
+                    }
+                    if flag.load(Ordering::Acquire) {
+                        return Ok(());
                     }
                     driver.check_target()?;
                     match receiver.recv_timeout(Duration::from_millis(20)) {
                         Ok((event, reply)) => {
                             let result = (|| {
+                                if Instant::now() >= deadline {
+                                    return Err(Error::new(Code::Timeout, "desktop deadline"));
+                                }
+                                if flag.load(Ordering::Acquire) {
+                                    return Err(Error::new(Code::Cancelled, "desktop stopped"));
+                                }
                                 driver.check_target()?;
                                 match event {
                                     Event::Down(input)
