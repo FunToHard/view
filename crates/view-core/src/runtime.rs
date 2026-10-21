@@ -43,6 +43,7 @@ struct Node<M, A> {
     transform: Transform2D,
     clip: Option<LogicalRect>,
     focusable: bool,
+    enabled: bool,
     tab_index: i32,
     role: Option<Role>,
     name: Option<String>,
@@ -155,6 +156,11 @@ impl<M, A> Runtime<M, A> {
         self.counters
     }
 
+    /// Read direct-child ownership without requiring a committed snapshot.
+    pub fn structure(&self, id: NodeId) -> Result<Structure, CoreError> {
+        Ok(self.nodes.get(id.0)?.structure)
+    }
+
     /// Last fully published tree. Mutations remain invisible here until commit.
     pub fn snapshot(&self) -> &Snapshot {
         &self.snapshot
@@ -231,6 +237,7 @@ impl<M, A> Runtime<M, A> {
             transform: description.transform,
             clip: description.clip,
             focusable: description.focusable,
+            enabled: description.enabled,
             tab_index: description.tab_index,
             role: description.role,
             name: description.name,
@@ -497,6 +504,7 @@ impl<M, A> Runtime<M, A> {
                 n.transform = description.transform;
                 n.clip = description.clip;
                 n.focusable = description.focusable;
+                n.enabled = description.enabled;
                 n.tab_index = description.tab_index;
                 n.role = description.role;
                 n.name = description.name;
@@ -871,6 +879,20 @@ impl<M, A> Runtime<M, A> {
                 }
             }
 
+            let invalid_focus: Vec<_> = self
+                .windows
+                .iter()
+                .filter_map(|(id, win)| {
+                    let window = WindowId::from_handle(id);
+                    win.focus
+                        .focused()
+                        .filter(|target| !self.keyboard_target_allowed(window, *target))
+                        .map(|_| window)
+                })
+                .collect();
+            for window in invalid_focus {
+                self.windows.get_mut(window.handle())?.focus.set_focus(None);
+            }
             let nodes = self
                 .nodes
                 .iter()
@@ -889,9 +911,12 @@ impl<M, A> Runtime<M, A> {
                         .collect(),
                     bounds: node.layout_rect,
                     global_bounds: node.global_rect,
+                    transform: node.transform,
+                    clip: node.clip,
                     role: node.role.clone(),
                     name: node.name.clone(),
                     focusable: node.focusable,
+                    enabled: self.effectively_enabled(NodeId(id)),
                     semantic: (node.role.is_some() || node.name.is_some() || node.focusable).then(
                         || SemanticNode {
                             id: NodeId(id),
@@ -900,7 +925,7 @@ impl<M, A> Runtime<M, A> {
                             value: node.value.clone(),
                             actions: node.semantic_actions.clone(),
                             bounds: node.global_rect,
-                            disabled: false,
+                            disabled: !self.effectively_enabled(NodeId(id)),
                             focused: self
                                 .windows
                                 .get(node.window.handle())
@@ -1010,11 +1035,34 @@ impl<M, A> Runtime<M, A> {
             .get(target.0)
             .is_ok_and(|node| node.window == window)
             && self.effectively_visible(target)
+            && self.effectively_enabled(target)
             && self.windows.get(window.handle()).is_ok_and(|win| {
                 win.focus
                     .is_allowed_by_modal(target, |parent, child| self.is_descendant(parent, child))
                     .is_ok()
             })
+    }
+
+    fn effectively_enabled(&self, mut id: NodeId) -> bool {
+        loop {
+            let Ok(node) = self.nodes.get(id.0) else {
+                return false;
+            };
+            if !node.enabled {
+                return false;
+            }
+            match node.parent {
+                Some(parent) => id = parent,
+                None => return true,
+            }
+        }
+    }
+
+    /// Change subtree input eligibility without making disabled content transparent.
+    /// Focus is cleared at commit; captured routing emits cancellation on the next input.
+    pub fn set_enabled(&mut self, id: NodeId, enabled: bool) -> Result<(), CoreError> {
+        self.nodes.get_mut(id.0)?.enabled = enabled;
+        self.invalidate(id, Dirty::SEMANTICS.union(Dirty::PAINT))
     }
 
     /// Set logical size for a window. Invalidates layout for that window.
@@ -1163,13 +1211,19 @@ impl<M, A> Runtime<M, A> {
             self.flush(model)?;
         }
 
-        let hit = self.hit_test(window, event.position)?;
+        let hit = self
+            .hit_test(window, event.position)?
+            .filter(|hit| self.effectively_enabled(hit.target));
+        let captured = self.windows.get(window.handle())?.pointer.captured();
+        let captured_local = captured.and_then(|id| self.window_to_local(id, event.position).ok());
         let revoked = self
             .windows
             .get(window.handle())?
             .pointer
             .captured()
-            .is_some_and(|target| !self.keyboard_target_allowed(window, target));
+            .is_some_and(|target| {
+                !self.keyboard_target_allowed(window, target) || captured_local.is_none()
+            });
         let win = self.windows.get_mut(window.handle())?;
         let mut actions = if revoked {
             win.pointer.reset()
@@ -1177,7 +1231,95 @@ impl<M, A> Runtime<M, A> {
             Vec::new()
         };
         actions.extend(win.pointer.route(event, |_| hit));
+        // PointerRouter owns capture but has no layout tree. Normalize its window-space
+        // capture coordinates through the same ancestor/scroll transforms as hit testing.
+        if !revoked && let (Some(owner), Some(point)) = (captured, captured_local) {
+            for action in &mut actions {
+                match action {
+                    RoutedPointerAction::Move { target, local }
+                    | RoutedPointerAction::Down { target, local, .. }
+                    | RoutedPointerAction::Up { target, local, .. }
+                        if *target == owner =>
+                    {
+                        *local = point
+                    }
+                    _ => {}
+                }
+            }
+        }
         Ok(actions)
+    }
+
+    /// Map window logical coordinates to a live node, including ancestor scroll and
+    /// transforms. Unlike hit testing this does not reject points outside the clip.
+    pub fn window_to_local(
+        &self,
+        id: NodeId,
+        point: LogicalPoint,
+    ) -> Result<LogicalPoint, CoreError> {
+        let mut path = vec![id];
+        let mut parent = self.nodes.get(id.0)?.parent;
+        while let Some(id) = parent {
+            path.push(id);
+            parent = self.nodes.get(id.0)?.parent;
+        }
+        let mut transform = TransformChain::IDENTITY;
+        for node_id in path.into_iter().rev() {
+            let node = self.nodes.get(node_id.0)?;
+            transform = transform
+                .then(&Transform2D::translation(
+                    node.layout_rect.origin.x,
+                    node.layout_rect.origin.y,
+                ))
+                .then(&node.transform);
+            if node_id == id {
+                return transform
+                    .inverse_transform_point(point)
+                    .filter(|p| p.is_valid())
+                    .ok_or(CoreError::InvalidGeometry);
+            }
+            transform = self
+                .child_geometry(node_id, node, ClipChain::NONE, transform)?
+                .1;
+        }
+        Err(CoreError::InvalidGeometry)
+    }
+
+    /// Public diagnostic transform and accumulated clip, including window bounds
+    /// and scroll viewports. Call after commit for snapshot-coherent geometry.
+    pub fn diagnostic_geometry(
+        &self,
+        id: NodeId,
+    ) -> Result<(Transform2D, Option<LogicalRect>), CoreError> {
+        let node = self.nodes.get(id.0)?;
+        let window = self.windows.get(node.window.handle())?;
+        let mut clip = if window.size.width > 0. && window.size.height > 0. {
+            ClipChain::new(LogicalRect::new(LogicalPoint::ZERO, window.size))
+        } else {
+            ClipChain::NONE
+        };
+        let mut path = vec![id];
+        let mut parent = node.parent;
+        while let Some(p) = parent {
+            path.push(p);
+            parent = self.nodes.get(p.0)?.parent;
+        }
+        let mut transform = TransformChain::IDENTITY;
+        for current in path.into_iter().rev() {
+            let node = self.nodes.get(current.0)?;
+            transform = transform
+                .then(&Transform2D::translation(
+                    node.layout_rect.origin.x,
+                    node.layout_rect.origin.y,
+                ))
+                .then(&node.transform);
+            clip = clip.intersect(node.clip, &transform.transform());
+            if current == id {
+                return Ok((transform.transform(), clip.rect()));
+            }
+            (clip, transform) = self.child_geometry(current, node, clip, transform)?;
+        }
+        Err(CoreError::InvalidGeometry)
     }
 
     /// Route a keyboard event to shortcuts or focused node.
@@ -1243,6 +1385,11 @@ impl<M, A> Runtime<M, A> {
     /// Currently focused node in a window.
     pub fn focused(&self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
         Ok(self.windows.get(window.handle())?.focus.focused())
+    }
+
+    /// Current logical capture owner for coherent owner-thread diagnostics.
+    pub fn captured(&self, window: WindowId) -> Result<Option<NodeId>, CoreError> {
+        Ok(self.windows.get(window.handle())?.pointer.captured())
     }
 
     /// Capture logical pointer routing for a live, visible node in this window's
@@ -1320,7 +1467,11 @@ impl<M, A> Runtime<M, A> {
 
         let mut candidates = Vec::new();
         for (id, node) in self.nodes.iter() {
-            if node.window == window && node.focusable && self.effectively_visible(NodeId(id)) {
+            if node.window == window
+                && node.focusable
+                && self.effectively_visible(NodeId(id))
+                && self.effectively_enabled(NodeId(id))
+            {
                 let node_id = NodeId(id);
                 if let Some(m) = modal
                     && !self.is_descendant(m, node_id)

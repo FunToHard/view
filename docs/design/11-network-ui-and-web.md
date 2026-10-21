@@ -2,6 +2,12 @@
 
 Status: revision 0.4 selected P-13/P-14 baseline; P-15 web delivery deliberately deferred. Owner clarification: a native network-driven storefront, not a browser shell. Windows-first delivery remains unchanged.
 
+M4 implementation update (2026-10-19): optional `view-resource` and the public
+application proofs implement the versioned retrieval/subscription, bounded stream,
+cache/asset and local section-registry contracts. See the
+[authoring guide](../guides/authoring.md) and [evidence](../plan/evidence/m4-authoring-proofs.md).
+The storefront service is deterministic/fake; live HTTP and web delivery are not claimed.
+
 ## Network requests update state, then UI
 
 Normal Rust branching should select UI from application state. A request is an application effect, initiated by an action, subscription, or explicit component lifecycle operation. Neither rendering nor repeated layout starts the request.

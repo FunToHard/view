@@ -1,0 +1,18 @@
+[package]
+name = "view-resource"
+description = "Bounded transport-independent resources and remote sections for view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-core.workspace = true
+
+[features]
+image-bmp = []
+
+[lints]
+workspace = true

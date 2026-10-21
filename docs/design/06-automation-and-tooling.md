@@ -2,6 +2,13 @@
 
 Status: selected R-11 tooling baseline; P-08/P-09/P-17/P-18/P-19/P-21/P-22. Revision: 0.4.
 
+Implementation update, 2026-10-21: protocol v1, optional `view-automation` and
+`view-tooling`, official rmcp stdio, public inspector/capture/replay contracts and
+the guarded Windows input driver are implemented. Use the [automation guide](../guides/automation.md)
+for compiled APIs and [M5 evidence](../plan/evidence/m5-automation.md) for executed
+coverage. The detailed native/profile matrix below remains an acceptance target;
+the implemented runner does not imply every platform/IME/AT gate has passed.
+
 ## Automation boundary
 
 Provide one versioned command/query model over the runtime. Rust tests, a CLI, an inspector, and an optional MCP adapter use it. The protocol operates on public semantic and diagnostic contracts, not memory addresses or private widget fields.

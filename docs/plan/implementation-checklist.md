@@ -222,22 +222,24 @@ Sources: [authoring](../design/03-rust-authoring-api.md), [network UI](../design
 Capabilities: C-02, C-03, C-14–C-17, C-20, C-21, C-34, C-35, C-40, C-41.
 Acceptance: T-16–T-19, T-27/T-28; integrated T-01–T-09.
 
-- [ ] **M4-01** Stabilize canonical builders, property structs, fixed-child tuples, keyed iterators and Element branches; review ownership, diagnostics, code size and compile ergonomics.
-- [ ] **M4-02** Expose supported retained handles/immediate regions and mixed-mode composition through the facade; test structural ownership and skipped-region state.
-- [ ] **M4-03** Implement Resource<T> state/subscriptions, versioned completions and application/executor adapters without starting effects in build/layout.
-- [ ] **M4-04** Implement request identity, cancellation/stale-response checks, refresh-over-existing-content, retry/cache policies and explicit reconnect behavior.
-- [ ] **M4-05** Implement bounded progress/stream handling, image/asset loading, cache eviction and opt-in codec features; preserve required events under backpressure.
-- [ ] **M4-06** Implement loading/ready/error/empty branches with documented local-state preservation, focus fallback and application-owned persistent state.
-- [ ] **M4-07** Implement bounded server-described sections using a local versioned control/action registry, stable keys, schema fallback and resource limits; no remote executable code.
-- [ ] **M4-08** Build the engine-editor proof: hierarchy, inspector, scene selection/gizmo, undo and detached window using public interfaces.
-- [ ] **M4-09** Build the native storefront fixture: navigation/search/catalog/remote sections/images/progress/offline state; inject reordered replies, refresh and reconnect.
-- [ ] **M4-10** Complete a second image-editor or IDE workflow using shared documents, keyboard navigation and async work; reuse the canvas fixture or editor services without building a full product.
-- [ ] **M4-11** Publish public control composition/layout/paint/semantics/event contracts and version/feature requirements; keep ordinary controls independent of runtime add-ons.
-- [ ] **M4-12** Build a separate Markdown preview control package with explicit syntax, selection/link/image/update/semantic policies and app-owned link actions.
-- [ ] **M4-13** Consume that package in an independent Cargo project using public APIs only; test package/feature isolation and required conformance adapters.
-- [ ] **M4-14** Create compiler-checked minimal/form/keyed-list/async-branch/two-window/immediate/custom-control/viewport examples and a versioned API quick reference.
-- [ ] **M4-15** Evaluate onboarding with the reference pack and record compile/behavior failures, invented API calls and correction needs; improve docs without claiming universal AI reliability.
-- [ ] **M4-16** Pass integrated proof and network race scenarios; document missing capability contracts instead of patching private framework internals.
+Evidence for M4-01–M4-16: [implementation, verification and onboarding report](evidence/m4-authoring-proofs.md). Windows x64 CPU/DX12 and hidden native surfaces passed; Linux/macOS runtime, physical input, real IME/native AT and independent blind onboarding coverage are not claimed. M4-15 records an internal compiler-driven exercise.
+
+- [x] **M4-01** Stabilize canonical builders, property structs, fixed-child tuples, keyed iterators and Element branches; review ownership, diagnostics, code size and compile ergonomics.
+- [x] **M4-02** Expose supported retained handles/immediate regions and mixed-mode composition through the facade; test structural ownership and skipped-region state.
+- [x] **M4-03** Implement Resource<T> state/subscriptions, versioned completions and application/executor adapters without starting effects in build/layout.
+- [x] **M4-04** Implement request identity, cancellation/stale-response checks, refresh-over-existing-content, retry/cache policies and explicit reconnect behavior.
+- [x] **M4-05** Implement bounded progress/stream handling, image/asset loading, cache eviction and opt-in codec features; preserve required events under backpressure.
+- [x] **M4-06** Implement loading/ready/error/empty branches with documented local-state preservation, focus fallback and application-owned persistent state.
+- [x] **M4-07** Implement bounded server-described sections using a local versioned control/action registry, stable keys, schema fallback and resource limits; no remote executable code.
+- [x] **M4-08** Build the engine-editor proof: hierarchy, inspector, scene selection/gizmo, undo and detached window using public interfaces.
+- [x] **M4-09** Build the native storefront fixture: navigation/search/catalog/remote sections/images/progress/offline state; inject reordered replies, refresh and reconnect.
+- [x] **M4-10** Complete a second image-editor or IDE workflow using shared documents, keyboard navigation and async work; reuse the canvas fixture or editor services without building a full product.
+- [x] **M4-11** Publish public control composition/layout/paint/semantics/event contracts and version/feature requirements; keep ordinary controls independent of runtime add-ons.
+- [x] **M4-12** Build a separate Markdown preview control package with explicit syntax, selection/link/image/update/semantic policies and app-owned link actions.
+- [x] **M4-13** Consume that package in an independent Cargo project using public APIs only; test package/feature isolation and required conformance adapters.
+- [x] **M4-14** Create compiler-checked minimal/form/keyed-list/async-branch/two-window/immediate/custom-control/viewport examples and a versioned API quick reference.
+- [x] **M4-15** Evaluate onboarding with the reference pack and record compile/behavior failures, invented API calls and correction needs; improve docs without claiming universal AI reliability.
+- [x] **M4-16** Pass integrated proof and network race scenarios; document missing capability contracts instead of patching private framework internals.
 
 ## 8. Complete external automation and physical E2E — M5
 
@@ -245,22 +247,27 @@ Sources: [automation](../design/06-automation-and-tooling.md).
 Capabilities: C-10, C-18, C-19, C-38–C-40.
 Acceptance: T-14, T-22–T-26; physical/native portions of T-29–T-31.
 
-- [ ] **M5-01** Introduce view-automation over the existing harness; version command/query schemas, capabilities, session/window IDs and structured unsupported errors.
-- [ ] **M5-02** Implement role/name/test-ID/ancestor selectors with ambiguity errors, target-generation checks and explicit stale-revision policies.
-- [ ] **M5-03** Expose coherent tree/layout/hit/focus/capture/semantic/resource snapshots, predicate waits, controlled time and commit/presentation waits with bounded diagnostics.
-- [ ] **M5-04** Register typed application commands with argument/result schemas, read/mutate scopes, revision preconditions and owner-thread action dispatch.
-- [ ] **M5-05** Implement long-operation IDs/progress/cancellation and session-local request deduplication; report unknown outcomes after ambiguous disconnects rather than promising exactly-once effects.
-- [ ] **M5-06** Implement the CLI/local attachment adapter with explicitly enabled session access; keep protocol messages separate from diagnostic output.
-- [ ] **M5-07** Qualify rmcp and implement the optional stdio MCP adapter; expose framework/domain discovery and command parity without a default eval tool.
-- [ ] **M5-08** Build the tree/layout inspector, clip/hit overlays, why-updated view and resource counters through the same public tool model.
-- [ ] **M5-09** Implement revision-tagged image capture, bounded failure bundles and replay of controlled time/assets/worker/network boundaries; label capture provenance and overhead.
-- [ ] **M5-10** Implement the opt-in Windows desktop input session: foreground/process checks, one owner, stop mechanism, timeouts and cleanup of only runner-held inputs.
-- [ ] **M5-11** Implement target realization and actionable-point selection through clips/transforms/occlusion/DPI/screen conversion; revalidate before input and fail on non-actionable targets.
-- [ ] **M5-12** Implement actual mouse/key/wheel input and observed delivery/results; distinguish semantic ensure-visible from physical scrolling and wheel tests from touchpad coverage.
+Implementation and local Windows evidence: [M5 automation report](evidence/m5-automation.md).
+Unchecked native acceptance items are partial: en-US physical workflows passed,
+while Japanese IME, full keyboard/control and mixed-monitor/native AT matrices
+remain open. Checked implementation items do not imply those broader gates passed.
+
+- [x] **M5-01** Introduce view-automation over the existing harness; version command/query schemas, capabilities, session/window IDs and structured unsupported errors.
+- [x] **M5-02** Implement role/name/test-ID/ancestor selectors with ambiguity errors, target-generation checks and explicit stale-revision policies.
+- [x] **M5-03** Expose coherent tree/layout/hit/focus/capture/semantic/resource snapshots, predicate waits, controlled time and commit/presentation waits with bounded diagnostics.
+- [x] **M5-04** Register typed application commands with argument/result schemas, read/mutate scopes, revision preconditions and owner-thread action dispatch.
+- [x] **M5-05** Implement long-operation IDs/progress/cancellation and session-local request deduplication; report unknown outcomes after ambiguous disconnects rather than promising exactly-once effects.
+- [x] **M5-06** Implement the CLI/local attachment adapter with explicitly enabled session access; keep protocol messages separate from diagnostic output.
+- [x] **M5-07** Qualify rmcp and implement the optional stdio MCP adapter; expose framework/domain discovery and command parity without a default eval tool.
+- [x] **M5-08** Build the tree/layout inspector, clip/hit overlays, why-updated view and resource counters through the same public tool model.
+- [x] **M5-09** Implement revision-tagged image capture, bounded failure bundles and replay of controlled time/assets/worker/network boundaries; label capture provenance and overhead.
+- [x] **M5-10** Implement the opt-in Windows desktop input session: foreground/process checks, one owner, stop mechanism, timeouts and cleanup of only runner-held inputs.
+- [x] **M5-11** Implement target realization and actionable-point selection through clips/transforms/occlusion/DPI/screen conversion; revalidate before input and fail on non-actionable targets.
+- [x] **M5-12** Implement actual mouse/key/wheel input and observed delivery/results; distinguish semantic ensure-visible from physical scrolling and wheel tests from touchpad coverage.
 - [ ] **M5-13** Run independent hit/scroll fixtures for nested/virtual content, overlays, disabled/offscreen targets, mixed DPI, window movement and layout races.
 - [ ] **M5-14** Run keyboard-first flows: Tab/reverse Tab, arrows/pages, modifiers/shortcuts, modal containment/return, Escape, text deletion/selection and undo.
 - [ ] **M5-15** Execute named en-US keyboard and Japanese IME scenarios; distinguish physical keys, Unicode insertion and native composition coverage.
-- [ ] **M5-16** Compare Rust/CLI/MCP discovery, semantic actions, errors, async results and undo; separately run pointer-select/gizmo-drag/inspector-edit/capture workflows.
+- [x] **M5-16** Compare Rust/CLI/MCP discovery, semantic actions, errors, async results and undo; separately run pointer-select/gizmo-drag/inspector-edit/capture workflows.
 - [ ] **M5-17** Test focus loss, target closure, interrupted runs, inaccessible targets and passive default mode; publish artifacts for failed/uncovered cases.
 - [ ] **M5-18** Close standard-control native conformance gaps and publish actual platform/profile coverage, including accessibility observations and independent geometry/pixel checks.
 

@@ -1,0 +1,18 @@
+[package]
+name = "view-automation"
+description = "Opt-in versioned automation and bounded diagnostics over the view harness."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-core.workspace = true
+view-testing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

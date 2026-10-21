@@ -14,6 +14,40 @@ Revision 0.3: the owner asks for low-friction UI authoring by models without vie
 
 ## Selected architecture
 
+M5 refinement, 2026-10-21: P-08/P-09/P-17/P-18 use optional `view-automation`
+over the existing harness and `view-tooling` for explicit local stdio / rmcp 3.6.0
+attachment. One versioned request model, typed schemas and owner-thread action
+dispatch serve Rust/CLI/MCP. Background jobs receive owned data plus cancellation;
+bounded session deduplication never promises cross-restart exactly-once delivery.
+Reason: external tooling must not add a second runtime or mandatory networking.
+The desktop driver is a separate opt-in platform feature with foreground/process
+checks and watchdog cleanup. Input insertion and observed routing remain separate
+receipts. Core exposes capture/clip diagnostics and effective enabled state so
+disabled controls remain occluding while excluded from input/focus. Contracts:
+[automation](../guides/automation.md). Acceptance and unexecuted native gates:
+[M5 evidence](../plan/evidence/m5-automation.md).
+
+M4 refinement, 2026-10-19: P-02/P-13/P-14/P-19/P-20 now use a bounded nested
+Element adapter over existing Description/Runtime identity, an optional
+transport-independent `view-resource` package and a separate `view-markdown`
+public consumer. Reason: prove application authoring without a second lifecycle,
+mandatory executor/network stack or add-on loader. Resources use owner leases,
+namespace/request generations and explicit UI-thread completion; refresh, retry,
+cache, stream and reconnect policy are caller-visible. The optional codec profile
+is raw RGBA plus bounded uncompressed 24-bit BMP; no new registry dependency.
+The Markdown profile deliberately supports bounded block syntax and app-owned
+navigation rather than claiming full CommonMark/rich-text behavior.
+Contracts: [authoring](../guides/authoring.md),
+[community controls](../guides/community-controls.md).
+Evidence and platform limits: [M4 report](../plan/evidence/m4-authoring-proofs.md).
+
+M4 integration correction: captured pointer coordinates are now transformed to
+the capturing node's local space, including ancestor scroll/scale, just like
+ordinary hit results. Previously the layout-free PointerRouter emitted window
+coordinates through Runtime during capture. A translated editor gizmo exposed
+the discrepancy. `Runtime::window_to_local` is the explicit public mapping;
+capture-coordinate and integrated drag/undo regressions establish the correction.
+
 M3B completion refinement, 2026-10-19: P-04/P-05/P-07 use CPU triangle picking
 with owner-qualified latest requests and scene/camera/viewport revisions, normal
 runtime capture plus document-neutral drag commits, and host-clock per-owner

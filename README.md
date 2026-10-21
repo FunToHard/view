@@ -34,6 +34,16 @@ see the [canvas](docs/guides/canvas.md), [scene](docs/guides/scene.md) and
 
 ## Development
 
+For canonical builders, async resources, remote sections and the engine-editor /
+native-storefront / IDE proofs, see the [authoring reference](docs/guides/authoring.md).
+The separate Markdown preview package follows the
+[public community-control contract](docs/guides/community-controls.md).
+Optional CLI/MCP automation, inspection and explicitly selected desktop tests are
+documented in the [automation guide](docs/guides/automation.md).
+Run `cargo run -p view-application-proofs --locked` for deterministic application
+flows; native/GPU modes are explicit. [M4 evidence](docs/plan/evidence/m4-authoring-proofs.md)
+distinguishes local implementation checks from unexecuted platform/native gates.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and [AGENTS.md](AGENTS.md)
 for repository guidance. From the repository root:
 

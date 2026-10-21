@@ -1,0 +1,26 @@
+[package]
+name = "view-application-proofs"
+description = "Public API engine editor, storefront and IDE proof applications"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view = { workspace = true, features = ["resources", "scene", "controls-render", "image-bmp"] }
+view-markdown.workspace = true
+view-automation = { workspace = true, optional = true }
+view-testing = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+view-platform = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }
+
+[features]
+native = ["dep:view-platform", "dep:winit"]
+automation = ["dep:view-automation", "dep:view-testing", "dep:serde_json"]
+desktop-test = ["native", "automation", "view-platform/desktop-input"]
+
+[lints]
+workspace = true
