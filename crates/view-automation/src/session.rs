@@ -592,7 +592,14 @@ impl<M, A> Session<M, A> {
             Operation::Inspector => {
                 let mut snapshot = self.snapshot()?;
                 if let Some(nodes) = snapshot["nodes"].as_array_mut() {
-                    for node in nodes {
+                    for (index, node) in nodes.iter_mut().enumerate() {
+                        if index >= 64 {
+                            node["actionable_error"] = json!(Error::new(
+                                Code::Limit,
+                                "inspector hit sampling budget; query target explicitly"
+                            ));
+                            continue;
+                        }
                         let target = Target {
                             id: node["id"].as_str().unwrap_or_default().into(),
                             revision: self.revision(),
@@ -650,7 +657,14 @@ impl<M, A> Session<M, A> {
                     self.harness
                         .schedule(Duration::ZERO, Input::Action(node, action))
                         .map_err(|_| Error::new(Code::Busy, "input queue full"))?;
-                    let step = self.harness.step()?;
+                    let step = self.harness.step().map_err(|error| {
+                        Error::new(
+                            Code::UnknownOutcome,
+                            format!(
+                                "dispatch failed after scheduling; inspect before retry: {error:?}"
+                            ),
+                        )
+                    })?;
                     if step.backpressure
                         || !step.rejected.is_empty()
                         || step.flush.backpressure

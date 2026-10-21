@@ -1,6 +1,24 @@
 use view::{authoring::*, *};
 use view_markdown::*;
 #[test]
+fn fences_empty_blocks_and_malformed_links_preserve_plain_text() {
+    let p = MarkdownPreview::new(
+        "````rust\n\na\n```\n````\n# After\n[Open](https://example.test)",
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(p.plain_text(), "\na\n```\nAfter\nOpen");
+    assert_eq!(p.blocks()[0].plain_range, 0..0);
+    assert_eq!(p.blocks()[1].plain_range, 1..2);
+    assert_eq!(p.blocks()[3].kind, Kind::Heading(1));
+    assert!(p.activate(4, p.revision()).is_ok());
+    for source in ["[a](https://x) and [b](https://y)", "[a](https://x y)"] {
+        let p = MarkdownPreview::new(source, Limits::default()).unwrap();
+        assert_eq!(p.blocks()[0].kind, Kind::Paragraph);
+        assert_eq!(p.plain_text(), source);
+    }
+}
+#[test]
 fn syntax_selection_links_images_and_atomic_updates_follow_declared_profile() {
     let mut p = MarkdownPreview::new("# Title\nhello 🦀\n[Open](https://example.test)\n![Alt](https://example.test/a.bmp)\n<script>x</script>",Limits::default()).unwrap();
     assert_eq!(p.blocks()[0].kind, Kind::Heading(1));

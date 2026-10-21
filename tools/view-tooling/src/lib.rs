@@ -133,12 +133,11 @@ pub fn serve<M, A>(
     mut input: impl BufRead,
     mut output: impl Write,
 ) -> std::io::Result<()> {
-    loop {
+    let result = (|| loop {
         let mut bytes = Vec::new();
         let count = std::io::Read::take(&mut input, (MAX_MESSAGE + 1) as u64)
             .read_until(b'\n', &mut bytes)?;
         if count == 0 {
-            session.disconnect();
             return Ok(());
         }
         if bytes.len() > MAX_MESSAGE {
@@ -158,5 +157,7 @@ pub fn serve<M, A>(
         serde_json::to_writer(&mut output, &response)?;
         output.write_all(b"\n")?;
         output.flush()?;
-    }
+    })();
+    session.disconnect();
+    result
 }

@@ -248,6 +248,50 @@ fn malformed_json_is_a_protocol_error_not_diagnostic_stdout() {
 }
 
 #[test]
+fn transport_failures_disconnect_embedded_sessions() {
+    let mut s = view_tooling::fixture("test".into()).unwrap();
+    let op = s.start_operation().unwrap();
+    let mut output = vec![];
+    assert!(
+        view_tooling::serve(
+            &mut s,
+            std::io::Cursor::new(vec![b' '; MAX_MESSAGE + 1]),
+            &mut output
+        )
+        .is_err()
+    );
+    assert_eq!(
+        s.execute(request(1, Operation::Poll { operation: op }))
+            .result
+            .unwrap_err()
+            .code,
+        Code::UnknownOutcome
+    );
+    let mut s = view_tooling::fixture("test".into()).unwrap();
+    struct Broken;
+    impl std::io::Write for Broken {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "closed",
+            ))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let input = serde_json::to_vec(&request(1, Operation::Discover)).unwrap();
+    assert!(view_tooling::serve(&mut s, std::io::Cursor::new(input), Broken).is_err());
+    assert_eq!(
+        s.execute(request(2, Operation::Snapshot))
+            .result
+            .unwrap_err()
+            .code,
+        Code::UnknownOutcome
+    );
+}
+
+#[test]
 fn background_tasks_are_bounded_pollable_and_same_session_retries_do_not_restart() {
     let mut s = view_tooling::fixture("test".into()).unwrap();
     let t = target(&s);

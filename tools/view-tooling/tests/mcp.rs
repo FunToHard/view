@@ -8,7 +8,7 @@ use std::{
 };
 struct Client {
     child: Child,
-    input: ChildStdin,
+    input: Option<ChildStdin>,
     output: mpsc::Receiver<Value>,
 }
 impl Drop for Client {
@@ -42,13 +42,14 @@ impl Client {
         });
         Self {
             child,
-            input,
+            input: Some(input),
             output,
         }
     }
     fn send(&mut self, value: Value) {
-        writeln!(self.input, "{value}").unwrap();
-        self.input.flush().unwrap();
+        let input = self.input.as_mut().unwrap();
+        writeln!(input, "{value}").unwrap();
+        input.flush().unwrap();
     }
     fn receive(&self, id: u64) -> Value {
         loop {
@@ -69,6 +70,26 @@ impl Client {
             .expect("MCP tool text response");
         serde_json::from_str(text).unwrap()
     }
+}
+#[test]
+fn eof_with_queued_requests_shuts_down_without_retaining_owner_senders() {
+    let mut c = Client::start();
+    c.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"eof-test","version":"1"}}}));
+    assert!(c.receive(1).get("result").is_some());
+    c.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
+    for id in 2..18 {
+        c.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"view.request","arguments":{"version":1,"session":"mcp-test","id":id,"operation":{"op":"discover"}}}}));
+    }
+    drop(c.input.take());
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if let Some(status) = c.child.try_wait().unwrap() {
+            assert!(status.success(), "{status}");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("MCP owner did not shut down after EOF");
 }
 #[test]
 fn official_stdio_sdk_negotiates_and_preserves_discovery_mutation_undo_and_errors() {

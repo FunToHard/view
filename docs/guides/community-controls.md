@@ -28,7 +28,8 @@ network dependency. It demonstrates a deliberately small specialized preview,
 not a CommonMark implementation or a rich-text editor.
 
 Supported syntax: paragraphs (one nonempty source line per block), ATX headings
-1–6, bare triple-backtick fenced code, and whole-line `[label](https://target)` /
+1–6, backtick fences of at least three markers with optional info strings (no
+highlighting), and whole-line `[label](https://target)` /
 `![alt](https://target)` references. Other syntax, HTML and unsafe schemes render
 literally. No scripts, raw HTML, inline markup parser or external program launch.
 Image references expose alt text and an asset request candidate; the app decides

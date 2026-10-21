@@ -74,6 +74,8 @@ focus/capture state. Inspection rejects pending runtime work instead of mixing a
 old tree with new geometry. `inspector` returns the same snapshot, bounded
 invalidation history, and standalone HTML with bounds, accumulated clips and
 verified hit-point overlays. HTML labels are escaped and load no scripts or network resources.
+Hit overlays sample at most 64 nodes per inspection; remaining nodes carry an
+explicit sampling-limit error and can be queried individually with `action_point`.
 
 `action_point` samples a bounded grid in a target's visible window bounds and
 validates each candidate using actual transformed/clipped/paint-ordered hit

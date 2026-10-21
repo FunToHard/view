@@ -137,6 +137,8 @@ pub fn run(name: String) -> Result<(), Box<dyn std::error::Error>> {
         service.waiting().await?;
         Ok::<_, Box<dyn std::error::Error>>(())
     });
+    // Pending handler futures retain sender clones until the runtime drops them.
+    drop(runtime);
     owner
         .join()
         .map_err(|_| "owner thread panicked")?

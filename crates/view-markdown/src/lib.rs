@@ -176,12 +176,21 @@ fn parse(source: &str, limits: Limits) -> Result<(Vec<Block>, String), Error> {
     }
     let mut blocks = vec![];
     let mut plain = String::new();
-    let mut code = false;
+    let mut fence: Option<usize> = None;
     for line in source.lines() {
-        if line == "```" {
-            code = !code;
-            continue;
+        let ticks = line.bytes().take_while(|b| *b == b'`').count();
+        match fence {
+            None if ticks >= 3 && !line[ticks..].contains('`') => {
+                fence = Some(ticks);
+                continue;
+            }
+            Some(open) if ticks >= open && line[ticks..].trim().is_empty() => {
+                fence = None;
+                continue;
+            }
+            _ => {}
         }
+        let code = fence.is_some();
         if line.is_empty() && !code {
             continue;
         }
@@ -201,7 +210,11 @@ fn parse(source: &str, limits: Limits) -> Result<(Vec<Block>, String), Error> {
                     return Err(Error::Limit);
                 }
                 // Schemes are deliberately allowlisted; host still authorizes each navigation.
-                if target.starts_with("https://") && !target.chars().any(char::is_control) {
+                if target.starts_with("https://")
+                    && !target
+                        .chars()
+                        .any(|c| c.is_control() || c.is_whitespace() || c == ')')
+                {
                     (
                         if line.starts_with('!') {
                             Kind::Image(target.into())
@@ -217,7 +230,7 @@ fn parse(source: &str, limits: Limits) -> Result<(Vec<Block>, String), Error> {
                 (Kind::Paragraph, line)
             }
         };
-        if !plain.is_empty() {
+        if !blocks.is_empty() {
             plain.push('\n');
         }
         let start = plain.len();
