@@ -3,6 +3,14 @@
 | Profile | Command | Evidence meaning |
 | --- | --- | --- |
 | Facade default | `cargo check -p view --locked` | Public package alone |
+| Add-on process/control contracts | `cargo test -p view-addons --all-features --locked` | Actual local child negotiation/failure and host-control/permission tests; no physical input |
+| Add-on review proof | `cargo run -p view-addons --bin review-addon --locked -- --proof` | Native guest, host document transaction and undo, cleanup receipts |
+| Add-on rendering | `cargo run -p view-addons --features render --bin review-addon --locked -- --gpu dx12` | Explicit offscreen host-control rendering; no native window claim |
+| Independent add-ons | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features addons --locked --target-dir target/consumer` | Optional facade protocol outside root feature unification |
+| Webview lifecycle CPU | `cargo test -p view-webview --all-features --locked` | Mock lifecycle/bridge plus native adapter compilation on Windows; no browser launched |
+| Independent webview | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features webview --locked --target-dir target/consumer` | Portable facade contract without native feature unification |
+| Independent native webview | `cargo check --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features webview-native --locked --target-dir target/consumer` | Windows adapter dependencies outside root feature unification; no browser launched |
+| Explicit Windows WebView2 | `pwsh -File scripts/verify.ps1 -NativeWebview` | Adds passive owned-profile native lifecycle fixture; no physical input |
 | Automation CPU | `cargo test -p view-automation --locked` | Selectors, revision/predicate/geometry and guarded-driver mocks; no physical input |
 | CLI/MCP | `cargo test -p view-tooling --all-features --locked` | Actual local rmcp subprocess and shared dispatcher parity |
 | Independent automation | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features automation --locked --target-dir target/consumer` | No native/MCP feature leak |

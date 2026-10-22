@@ -276,36 +276,36 @@ remain open. Checked implementation items do not imply those broader gates passe
 Source: [webview lifecycle](../design/15-webview-lifecycle.md).
 Capabilities: C-28, C-44. Acceptance: T-35–T-38.
 
-- [ ] **M6-01** Qualify webview2-com/runtime compatibility and introduce view-webview as an optional Windows adapter; detect runtime availability with a documented Evergreen recovery route.
-- [ ] **M6-02** Implement rectangular native hosting, placement/z-order, DPI, resize, focus/keyboard/IME and accessibility handoff; reject unsupported transformed composition.
-- [ ] **M6-03** Implement explicit panel/controller/session/process-group/profile ownership; default to a dedicated ephemeral profile and require opt-in sharing/persistence.
-- [ ] **M6-04** Implement typed origin/frame/session-checked bridge permissions and app-owned navigation/download/devtools policy; revoke grants on relevant navigation or disposal.
-- [ ] **M6-05** Implement app-declared finish and DisposeAfterUse: stop new work, revoke callbacks, cancel tasks, resolve focus/IME, remove subscriptions, Close controller and release references on the owning thread.
-- [ ] **M6-06** Implement asynchronous dedicated-session exit observation and safe ephemeral-profile removal with session-generation checks; never delete persistent/shared data or kill a shared group.
-- [ ] **M6-07** Return cleanup receipts for released/exited/removed/shared-retained/pending/failed scopes; bound pending sessions and make timeout/retry/startup reconciliation observable.
-- [ ] **M6-08** Implement KeepHot hide/detach/reuse with retained state, no deliberate reload/suspension and exclusion from visible focus/hit targets.
-- [ ] **M6-09** Implement app-owned hot leases, count/memory/time budgets and explicit eviction decisions; report browser throttling, crashes and recreated instances honestly.
-- [ ] **M6-10** Test repeated disposal, shared-session siblings, profile locks, late callbacks, recreate-during-cleanup and shutdown; verify measured owned-resource release.
-- [ ] **M6-11** Test hot state reuse/budgets and native keyboard/IME/scroll/DPI reattachment; run lifecycle mocks on Linux/macOS without claiming native WebView2 coverage.
-- [ ] **M6-12** Ship both policies in the panel example with cleanup/retention instrumentation and a documented native-composition limitation matrix.
+- [x] **M6-01** Qualify webview2-com/runtime compatibility and introduce view-webview as an optional Windows adapter; detect runtime availability with a documented Evergreen recovery route. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [ ] **M6-02** Implement rectangular native hosting, placement/z-order, DPI, resize, focus/keyboard/IME and accessibility handoff; reject unsupported transformed composition. Implemented adapter; native focus/IME/accessibility handoff certification remains open: [evidence](evidence/m6-webview.md).
+- [x] **M6-03** Implement explicit panel/controller/session/process-group/profile ownership; default to a dedicated ephemeral profile and require opt-in sharing/persistence. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-04** Implement typed origin/frame/session-checked bridge permissions and app-owned navigation/download/devtools policy; revoke grants on relevant navigation or disposal. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-05** Implement app-declared finish and DisposeAfterUse: stop new work, revoke callbacks, cancel tasks, resolve focus/IME, remove subscriptions, Close controller and release references on the owning thread. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-06** Implement asynchronous dedicated-session exit observation and safe ephemeral-profile removal with session-generation checks; never delete persistent/shared data or kill a shared group. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-07** Return cleanup receipts for released/exited/removed/shared-retained/pending/failed scopes; bound pending sessions and make timeout/retry/startup reconciliation observable. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-08** Implement KeepHot hide/detach/reuse with retained state, no deliberate reload/suspension and exclusion from visible focus/hit targets. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-09** Implement app-owned hot leases, count/memory/time budgets and explicit eviction decisions; report browser throttling, crashes and recreated instances honestly. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [x] **M6-10** Test repeated disposal, shared-session siblings, profile locks, late callbacks, recreate-during-cleanup and shutdown; verify measured owned-resource release. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
+- [ ] **M6-11** Test hot state reuse/budgets and native keyboard/IME/scroll/DPI reattachment; run lifecycle mocks on Linux/macOS without claiming native WebView2 coverage. CPU and passive Windows portions passed; physical/native and Linux/macOS execution remain open: [evidence](evidence/m6-webview.md).
+- [x] **M6-12** Ship both policies in the panel example with cleanup/retention instrumentation and a documented native-composition limitation matrix. Evidence: [M6 implementation and Windows execution](evidence/m6-webview.md).
 
 ## 10. Implement optional runtime add-ons — M7
 
 Source: [runtime add-ons](../design/14-runtime-addons.md).
 Capabilities: C-31, C-43. Acceptance: T-32–T-34.
 
-- [ ] **M7-01** Introduce view-addons and a native Rust child-process example; define manifests, IDs, protocol versions and trusted-code/OS-privilege boundaries.
-- [ ] **M7-02** Implement bounded length-delimited JSON on dedicated stdio, separate diagnostics, negotiation, startup timeout and malformed/oversized message rejection.
-- [ ] **M7-03** Implement install/activate/deactivate/fail/disable lifecycle, instance generations, process exit handling and owned-request/resource cleanup.
-- [ ] **M7-04** Implement namespaced side-panel/menu/toolbar slots and bounded host-rendered UI snapshots/patches with base revisions and resynchronization.
-- [ ] **M7-05** Implement guest builders/SDK and standard-control event/value mapping; keep local editing responsive without per-keystroke blocking IPC.
-- [ ] **M7-06** Implement host-registered component schemas, required/optional capability fallback and explicit rejection of unknown native control implementations.
-- [ ] **M7-07** Implement application-granted document snapshots/actions with validation, preconditions and undo transactions; never expose unrestricted mutable tree/document access.
-- [ ] **M7-08** Enforce host API scopes, resource/message/rate limits, cancellation and timeout behavior; distinguish API restrictions from OS sandboxing.
-- [ ] **M7-09** Integrate contributed semantics, focus, standard-control conformance and host-authorized automation command discovery.
-- [ ] **M7-10** Build the Word-like review-panel proof with one revision-checked, undoable document edit; the application owns its document model.
-- [ ] **M7-11** Test incompatibility, malformed traffic, stale edits, disconnect/crash/restart, deactivation and late replies; verify no orphaned UI, commands or focus ownership.
-- [ ] **M7-12** Document installation/update/restart/trust/version support and the shipped component subset; no JIT, DLL unload or sandbox claims beyond actual implementation.
+- [x] **M7-01** Introduce view-addons and a native Rust child-process example; define manifests, IDs, protocol versions and trusted-code/OS-privilege boundaries. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-02** Implement bounded length-delimited JSON on dedicated stdio, separate diagnostics, negotiation, startup timeout and malformed/oversized message rejection. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-03** Implement install/activate/deactivate/fail/disable lifecycle, instance generations, process exit handling and owned-request/resource cleanup. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-04** Implement namespaced side-panel/menu/toolbar slots and bounded host-rendered UI snapshots/patches with base revisions and resynchronization. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-05** Implement guest builders/SDK and standard-control event/value mapping; keep local editing responsive without per-keystroke blocking IPC. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-06** Implement host-registered component schemas, required/optional capability fallback and explicit rejection of unknown native control implementations. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-07** Implement application-granted document snapshots/actions with validation, preconditions and undo transactions; never expose unrestricted mutable tree/document access. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-08** Enforce host API scopes, resource/message/rate limits, cancellation and timeout behavior; distinguish API restrictions from OS sandboxing. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-09** Integrate contributed semantics, focus, standard-control conformance and host-authorized automation command discovery. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-10** Build the Word-like review-panel proof with one revision-checked, undoable document edit; the application owns its document model. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-11** Test incompatibility, malformed traffic, stale edits, disconnect/crash/restart, deactivation and late replies; verify no orphaned UI, commands or focus ownership. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
+- [x] **M7-12** Document installation/update/restart/trust/version support and the shipped component subset; no JIT, DLL unload or sandbox claims beyond actual implementation. Evidence: [M7 implementation and Windows execution](evidence/m7-addons.md).
 
 ## 11. Harden diagnostics, recovery and performance — M8
 

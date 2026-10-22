@@ -4,6 +4,23 @@ Revision: 0.4 — 2026-10-07. Baseline selected under the owner's explicit reque
 
 ## Accepted requirements
 
+M6 implementation refinement, 2026-10-22: `view-webview` separates portable
+ownership/bridge contracts from a Windows-only, UI-thread WebView2 adapter.
+Dedicated ephemeral profiles are the default; shared/persistent data is never
+deleted. Controller Close is followed by matching session/PID browser-group exit
+and worker-thread profile removal. Failed/pending receipts remain observable;
+startup discovery never assumes a prior process exited. KeepHot preserves the
+same controller with host accounting budgets and explicit eviction. Exact
+document grants are deliberately narrower than origin-wide authority, and
+session/epoch wire values are decimal strings to avoid JavaScript precision loss.
+Reason: make both lifetimes executable without adding a browser dependency to
+core or promising synchronous process cleanup. The qualified Windows binding is
+webview2-com 0.39.1 with windows 0.62.2; its sys/macros plus base64 0.22.1 add four
+registry packages. Runtime installation remains host-owned. Contracts and
+maintenance/licensing rationale: [webview guide](../guides/webview.md).
+Acceptance T-35–T-38 and remaining native/platform gates:
+[M6 evidence](../plan/evidence/m6-webview.md).
+
 R-01 through R-13 in the [product charter](01-product-charter.md) record explicit owner direction. They are requirements, not claims of implemented behavior.
 
 The latest scope refinement establishes Windows as the first product target, Linux/macOS CI testing, complex 2D/3D applications, native OS integration, the name/tagline, and creation/refinement of design documents. It broadens the earlier desktop-controls framing substantially.
@@ -13,6 +30,20 @@ Revision 0.2: the owner confirmed that the documents fit the design criteria and
 Revision 0.3: the owner asks for low-friction UI authoring by models without view-specific training, shareable community control crates, standard controls that do not omit expected editing behaviors, and runtime add-ons with custom UI in a Word-like application. These guide the new proposals below; no loader/runtime dependency or final syntax is selected by this update.
 
 ## Selected architecture
+
+M7 refinement, 2026-10-22: P-22/Q-13 uses optional `view-addons`, four-byte
+length-prefixed JSON on dedicated stdio and trusted AOT child executables.
+Versioned manifests select offered host slots and compiled component schemas;
+flat retained label/button/text nodes share core identities and control engines.
+Reason: executable extension UI and document-command boundaries without a new
+runtime, ABI, VM, mandatory networking or browser dependency. Host application
+traits retain document revision validation and undo authority. The host renders
+failure diagnostics in its own chrome; guests lose all contributed UI/commands.
+Explicit teardown requires the owning runtime, and process receipts distinguish
+child exit from worker completion. OS sandboxing/descendant containment are not
+claimed. There are no new registry dependencies; optional rendering reuses the
+qualified renderer. Contracts/subset: [add-ons](../guides/addons.md). Acceptance:
+[M7 evidence](../plan/evidence/m7-addons.md).
 
 M5 refinement, 2026-10-21: P-08/P-09/P-17/P-18 use optional `view-automation`
 over the existing harness and `view-tooling` for explicit local stdio / rmcp 3.6.0

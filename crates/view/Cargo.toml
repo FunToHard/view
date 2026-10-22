@@ -16,8 +16,14 @@ view-text = { workspace = true, optional = true }
 view-wgpu = { workspace = true, optional = true }
 view-controls = { workspace = true, optional = true }
 view-resource = { workspace = true, optional = true }
+view-webview = { workspace = true, optional = true }
+view-addons = { workspace = true, optional = true }
 
 [features]
+addons = ["dep:view-addons"]
+addons-render = ["addons", "view-addons/render"]
+webview = ["dep:view-webview"]
+webview-native = ["webview", "view-webview/native"]
 resources = ["dep:view-resource"]
 image-bmp = ["resources", "view-resource/image-bmp"]
 text = ["dep:view-text"]

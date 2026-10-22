@@ -1,0 +1,21 @@
+[package]
+name = "view-addons"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+render = ["dep:view-wgpu", "view-controls/render"]
+
+[dependencies]
+view-core.workspace = true
+view-controls.workspace = true
+view-wgpu = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

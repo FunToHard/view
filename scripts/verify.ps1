@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Gpu, [ValidateSet('dx12','vulkan','metal')][string]$Backend = 'dx12', [switch]$NativeClipboard)
+param([switch]$Gpu, [ValidateSet('dx12','vulkan','metal')][string]$Backend = 'dx12', [switch]$NativeClipboard, [switch]$NativeWebview)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repoRoot
@@ -8,6 +8,7 @@ $priorIncremental = $env:CARGO_INCREMENTAL
 $env:CARGO_INCREMENTAL = '0'
 try {
     if ($NativeClipboard -and -not $IsWindows) { throw 'Native clipboard verification currently requires Windows.' }
+    if ($NativeWebview -and -not $IsWindows) { throw 'Native WebView2 verification requires Windows.' }
     New-Item -ItemType Directory -Force target/verification | Out-Null
     Start-Transcript -Path target/verification/verify.log -Force | Out-Null
     function Invoke-Cargo {
@@ -28,6 +29,7 @@ try {
         gpuRequested = [bool]$Gpu
         nativeInputRequested = $false
         nativeClipboardRequested = [bool]$NativeClipboard
+        nativeWebviewRequested = [bool]$NativeWebview
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content target/verification/environment.json
     & "$PSScriptRoot/check-fixtures.ps1"
@@ -37,6 +39,14 @@ try {
     Invoke-Cargo @('clippy','--workspace','--all-targets','--locked','--','-D','warnings')
     Invoke-Cargo @('test','--workspace','--locked')
     Invoke-Cargo @('doc','--workspace','--no-deps','--locked')
+    Invoke-Cargo @('run','-p','view-addons','--bin','review-addon','--locked','--','--proof')
+    Invoke-Cargo @('clippy','-p','view-addons','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-addons','--all-features','--locked')
+    Invoke-Cargo @('doc','-p','view-addons','--all-features','--no-deps','--locked')
+    Invoke-Cargo @('clippy','-p','view-webview','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-webview','--all-features','--locked')
+    Invoke-Cargo @('doc','-p','view-webview','--all-features','--no-deps','--locked')
+    if ($NativeWebview) { Invoke-Cargo @('run','-p','view-webview','--features','native','--example','panel','--locked','--','--native-check') }
     Invoke-Cargo @('clippy','-p','view-automation','-p','view-tooling','--all-targets','--all-features','--locked','--','-D','warnings')
     Invoke-Cargo @('test','-p','view-automation','-p','view-tooling','--all-features','--locked')
     Invoke-Cargo @('doc','-p','view-automation','-p','view-tooling','--all-features','--no-deps','--locked')
@@ -76,6 +86,9 @@ try {
     Invoke-Cargo @('check','-p','view','--no-default-features','--locked')
     Invoke-Cargo @('check','-p','view','--all-features','--locked')
     # Independent workspace/lockfile, unaffected by root feature unification.
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','addons','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','webview','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('check','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','webview-native','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','automation','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('check','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('run','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
@@ -94,6 +107,7 @@ try {
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple
     if ($IsWindows) { Invoke-Cargo @('run','-p','platform-probe','--locked') }
     if ($Gpu) {
+        Invoke-Cargo @('run','-p','view-addons','--features','render','--bin','review-addon','--locked','--','--gpu',$Backend)
         Invoke-Cargo @('run','-p','view-application-proofs','--features','automation','--locked','--','--gpu',$Backend)
         if ($IsWindows) { Invoke-Cargo @('run','-p','view-application-proofs','--features','native','--locked','--','--run-hidden') }
         Invoke-Cargo @('run','-p','dependency-probe','--bin','gpu','--locked','--',$Backend)

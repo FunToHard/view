@@ -2,6 +2,12 @@
 
 Status: revision 0.4 selected P-22 baseline: optional trusted native child-process add-ons. VM/DLL/scripting backends are deferred; comparisons below explain their future tradeoffs.
 
+Implementation update, 2026-10-22: optional `view-addons` now implements the
+native stdio protocol, lifecycle, bounded host-control subset, document-service
+boundary and review proof. Compiled API and installation/trust requirements are
+in the [add-on guide](../guides/addons.md); executed T-32–T-34 evidence and platform
+limitations are in the [M7 record](../plan/evidence/m7-addons.md).
+
 ## Runtime extensibility does not require JIT
 
 A package can be compiled before distribution and loaded or started later. Rust can produce executables and dynamic libraries, including cdylib artifacts for a defined foreign interface. Windows supports runtime dynamic-library loading. The question is the extension boundary and lifecycle, not whether the source language compiles just in time. [Rust linkage](https://doc.rust-lang.org/reference/linkage.html), [Windows DLLs](https://learn.microsoft.com/en-us/windows/win32/dlls/using-dynamic-link-libraries)

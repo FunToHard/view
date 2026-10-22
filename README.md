@@ -40,6 +40,10 @@ The separate Markdown preview package follows the
 [public community-control contract](docs/guides/community-controls.md).
 Optional CLI/MCP automation, inspection and explicitly selected desktop tests are
 documented in the [automation guide](docs/guides/automation.md).
+Optional WebView2 panels, explicit disposal and hot retention are documented in
+the [webview guide](docs/guides/webview.md).
+Trusted native-process extensions, host-rendered review panels and document
+command scopes are described in the [add-on guide](docs/guides/addons.md).
 Run `cargo run -p view-application-proofs --locked` for deterministic application
 flows; native/GPU modes are explicit. [M4 evidence](docs/plan/evidence/m4-authoring-proofs.md)
 distinguishes local implementation checks from unexecuted platform/native gates.

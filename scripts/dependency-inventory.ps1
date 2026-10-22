@@ -6,7 +6,7 @@ try {
     $raw = & cargo metadata --format-version 1 --all-features --locked --filter-platform $Target
     if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
     $data = $raw | ConvertFrom-Json
-    $directNames = @('winit','windows','wgpu','cosmic-text','glyphon','accesskit','accesskit_winit','lyon','unicode-segmentation','bytemuck','serde','serde_json','rmcp','tokio')
+    $directNames = @('winit','windows','wgpu','cosmic-text','glyphon','accesskit','accesskit_winit','lyon','unicode-segmentation','bytemuck','serde','serde_json','rmcp','tokio','webview2-com','base64')
     $direct = foreach ($package in $data.packages | Where-Object name -In $directNames | Sort-Object name) {
         $node = $data.resolve.nodes | Where-Object id -EQ $package.id
         [ordered]@{name=$package.name;version=$package.version;license=$package.license;rustVersion=$package.rust_version;repository=$package.repository;metadataResolvedFeatures=@($node.features)}

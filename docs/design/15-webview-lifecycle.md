@@ -2,6 +2,12 @@
 
 Revision: 0.4. Status: selected design baseline under the owner's request to finalize decisions. Implementation and measured cleanup guarantees remain to be verified.
 
+Implementation update, 2026-10-22: optional `view-webview` now implements the
+Windows STA provider, portable lifecycle manager and typed bridge. The
+[integration guide](../guides/webview.md) describes compiled APIs and limitations;
+[M6 evidence](../plan/evidence/m6-webview.md) separates measured owned-resource
+release from outstanding native input, accessibility and platform qualification.
+
 ## Developer-selected policy
 
 view will provide an optional Windows webview panel adapter using WebView2. Native view controls remain the primary UI; a webview is an opt-in panel provider. This is independent of deferred WASM/web delivery and does not change the native storefront proof into a browser application.

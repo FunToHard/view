@@ -1,0 +1,30 @@
+[package]
+name = "view-webview"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+native = ["dep:webview2-com", "dep:windows", "dep:winit", "dep:base64"]
+
+[dependencies]
+view-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+base64 = { workspace = true, optional = true }
+webview2-com = { workspace = true, optional = true }
+windows = { workspace = true, optional = true, features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
+winit = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "panel"
+required-features = ["native"]

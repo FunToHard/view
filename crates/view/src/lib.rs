@@ -10,6 +10,10 @@
 
 #![forbid(unsafe_code)]
 
+/// Optional lifecycle contracts and Windows WebView2 adapter.
+#[cfg(feature = "webview")]
+pub use view_webview as webview;
+
 pub mod authoring;
 #[cfg(feature = "resources")]
 pub use view_resource as resources;
@@ -36,6 +40,10 @@ pub use view_wgpu::scene;
 /// Optional standard controls sharing runtime identity and text sessions.
 #[cfg(feature = "controls")]
 pub use view_controls as controls;
+
+/// Optional trusted native-process add-ons with host-owned controls.
+#[cfg(feature = "addons")]
+pub use view_addons as addons;
 
 pub use view_core::{
     Alignment, Axis, Constraints, CrossAxisAlignment, FlexItem, FlexLayout, LayoutCache,
