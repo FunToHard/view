@@ -2,6 +2,11 @@
 
 Status: selected syntax/state baseline P-02/P-13/P-19. Revision: 0.4. Exact implementation signatures are qualified through compiler-tested examples in the project plan.
 
+M4 implementation update (2026-10-19): the [0.1 authoring reference](../guides/authoring.md)
+and eight runnable facade examples now define the actual API. Historical sketches
+below are retained as rationale, not copy/paste signatures. See the
+[application and onboarding evidence](../plan/evidence/m4-authoring-proofs.md).
+
 ## Design objective
 
 Capture Flutter's readable nested composition while preserving ordinary Rust authoring, rustfmt, IDE navigation, and understandable compiler errors. Flutter's immutable descriptions and persistent runtime elements are useful precedent, not a requirement to reproduce its implementation. [Flutter architecture](https://docs.flutter.dev/resources/architectural-overview)

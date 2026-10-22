@@ -22,6 +22,11 @@ editing engine or standard text control is certified by this first slice. See
 
 ## Publish controls as ordinary Rust crates
 
+M4 implementation update: the separate `view-markdown` package and independent
+consumer now implement the specialized block-preview/1 proof. See the
+[public control contract and profile](../guides/community-controls.md). It does
+not claim complete CommonMark, rich-text editing or native certification.
+
 A developer should be able to publish a Markdown previewer, code editor, timeline, chart, or inspector as a normal Cargo library. Consumers depend on it and compose its exported View/component using the same mechanisms as first-party controls. This is compile-time source integration; it does not require a runtime plugin loader. Cargo already supplies the package distribution workflow. [Cargo publishing](https://doc.rust-lang.org/cargo/reference/publishing.html)
 
 ```rust

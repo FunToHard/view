@@ -106,6 +106,7 @@ pub struct Description<M, A> {
     pub(crate) transform: Transform2D,
     pub(crate) clip: Option<LogicalRect>,
     pub(crate) focusable: bool,
+    pub(crate) enabled: bool,
     pub(crate) tab_index: i32,
     pub(crate) role: Option<Role>,
     pub(crate) name: Option<String>,
@@ -113,6 +114,20 @@ pub struct Description<M, A> {
     pub(crate) semantic_actions: Vec<SemanticAction>,
 }
 impl<M, A> Description<M, A> {
+    /// Stable sibling key used by public composition adapters.
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+    /// Validate supplied geometry before a composition adapter mutates the tree.
+    pub fn validate_geometry(&self) -> Result<(), crate::CoreError> {
+        if !self.layout_rect.is_valid()
+            || !self.transform.is_valid()
+            || self.clip.is_some_and(|r| !r.is_valid())
+        {
+            return Err(crate::CoreError::InvalidGeometry);
+        }
+        Ok(())
+    }
     /// Describe owned local state and a handler borrowing the current model only
     /// during dispatch. Neither callback nor state may contain borrowed data.
     ///
@@ -144,6 +159,7 @@ impl<M, A> Description<M, A> {
             transform: Transform2D::IDENTITY,
             clip: None,
             focusable: false,
+            enabled: true,
             tab_index: 0,
             role: None,
             name: None,
@@ -179,6 +195,12 @@ impl<M, A> Description<M, A> {
     /// Mark node as focusable.
     pub fn focusable(mut self, focusable: bool) -> Self {
         self.focusable = focusable;
+        self
+    }
+    /// Disabled nodes remain visible and occluding but do not receive input/focus.
+    /// Disabling an ancestor disables its subtree.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
     /// Specify tab index for focus traversal.
@@ -284,12 +306,18 @@ pub struct NodeSnapshot {
     pub bounds: LogicalRect,
     /// Bounding rectangle in window logical space.
     pub global_bounds: LogicalRect,
+    /// Local affine transform, for diagnostic overlay construction.
+    pub transform: Transform2D,
+    /// Local clip, combined with ancestor clips by hit testing.
+    pub clip: Option<LogicalRect>,
     /// Accessible role, if declared.
     pub role: Option<Role>,
     /// Accessible name, if declared.
     pub name: Option<String>,
     /// Whether node is focusable.
     pub focusable: bool,
+    /// Effective input eligibility, including disabled ancestors.
+    pub enabled: bool,
     /// Semantic record captured atomically with this tree revision.
     pub semantic: Option<SemanticNode>,
 }

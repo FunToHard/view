@@ -15,8 +15,11 @@ view-core.workspace = true
 view-text = { workspace = true, optional = true }
 view-wgpu = { workspace = true, optional = true }
 view-controls = { workspace = true, optional = true }
+view-resource = { workspace = true, optional = true }
 
 [features]
+resources = ["dep:view-resource"]
+image-bmp = ["resources", "view-resource/image-bmp"]
 text = ["dep:view-text"]
 text-shaping = ["text", "view-text/shaping"]
 wgpu = ["dep:view-wgpu", "text-shaping"]
@@ -27,3 +30,11 @@ accessibility = ["controls", "view-controls/accessibility"]
 
 [lints]
 workspace = true
+
+[[example]]
+name = "async_branch"
+required-features = ["resources"]
+
+[[example]]
+name = "form"
+required-features = ["controls"]

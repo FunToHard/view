@@ -1,6 +1,6 @@
 # M0 runner contract and provisioning status
 
-Updated 2026-10-07. Specifications are not executed coverage. The canonical
+Updated 2026-10-21. Specifications are not executed coverage. The canonical
 checklist remains the progress record; this document records required environments.
 
 | Environment | Contract | Current evidence |
@@ -9,7 +9,7 @@ checklist remains the progress record; this document records required environmen
 | Windows GPU | Windows 11 x64; DX12-capable adapter and driver; optional separate Vulkan qualification | Local RTX 3050 detected; execution result in M0 evidence |
 | Linux GPU | Linux native host, Vulkan loader and compatible device/driver; pwsh and Rust/linker | No registered runner or machine supplied |
 | macOS GPU | Native macOS host with Metal device, Rust/linker and pwsh | No registered runner or machine supplied |
-| Windows interactive | Dedicated unlocked Windows 11 x64 desktop; en-US keyboard and Japanese IME; named DPI/monitor configuration | Not provisioned/certified; no input injection run |
+| Windows interactive | Explicitly selected unlocked Windows 11 x64 desktop; en-US keyboard and Japanese IME; named DPI/monitor configuration | User-selected local desktop passed guarded en-US physical workflows; Japanese IME unavailable, native AT and full monitor/control matrix uncovered. No permanent CI runner provisioned. See [M5 evidence](evidence/m5-automation.md) |
 
 GitHub read-only runner query returned zero self-hosted runners on 2026-10-07.
 The repository is public; a private personal desktop must not run untrusted PR
@@ -31,9 +31,10 @@ Interactive qualification is serialized per desktop. Require a stop mechanism,
 foreground target validation, bounded operations and cleanup of only runner-held
 keys/buttons. Record resolution, physical/logical DPI, display topology, input
 method and installed IME version. Tests must not change the user's active language
-or seize desktop input as part of ordinary `cargo test` or CPU CI. Add that driver
-in M5 and run the native shell acceptance flow from M1. Until then M0-13 and the
-dependent final gate stay open.
+or seize desktop input as part of ordinary `cargo test` or CPU CI. M5 implements
+the opt-in guarded Windows driver and `scripts/verify-desktop.ps1`; the local
+en-US run does not close Japanese IME, native AT or full platform/profile gates.
+M0-13 and the dependent final gate remain open until their complete evidence exists.
 
 Hosted Windows build images are not evidence of Windows 11 shell behavior. A
 Windows cross-compile is not Linux/macOS execution. Missing machines, credentials,

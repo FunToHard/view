@@ -13,12 +13,14 @@ workspace = true
 
 [dependencies]
 view-core.workspace = true
+view-automation = { workspace = true, optional = true }
 view-text = { workspace = true, optional = true }
 winit = { workspace = true }
 accesskit = { workspace = true, optional = true }
 accesskit_winit = { workspace = true, optional = true }
 
 [features]
+desktop-input = ["dep:view-automation", "windows/Win32_UI_Input_KeyboardAndMouse", "windows/Win32_System_Threading", "windows/Win32_Security", "windows/Win32_Graphics_Gdi"]
 accessibility = ["dep:accesskit", "dep:accesskit_winit"]
 desktop-services = ["windows/Win32_UI_Shell", "windows/Win32_UI_Shell_Common", "windows/Win32_System_Threading"]
 text = ["dep:view-text", "windows/Win32_System_DataExchange", "windows/Win32_System_Memory"]

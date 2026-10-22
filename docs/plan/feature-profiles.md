@@ -3,6 +3,19 @@
 | Profile | Command | Evidence meaning |
 | --- | --- | --- |
 | Facade default | `cargo check -p view --locked` | Public package alone |
+| Automation CPU | `cargo test -p view-automation --locked` | Selectors, revision/predicate/geometry and guarded-driver mocks; no physical input |
+| CLI/MCP | `cargo test -p view-tooling --all-features --locked` | Actual local rmcp subprocess and shared dispatcher parity |
+| Independent automation | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features automation --locked --target-dir target/consumer` | No native/MCP feature leak |
+| Automation GPU artifacts | `cargo run -p view-application-proofs --features automation --locked -- --gpu dx12` | Actual readback receipts, inspector and bounded bundle |
+| Selected desktop | `pwsh -File scripts/verify-desktop.ps1 -SelectedDesktop -Scenario en-US` | Physical input; explicitly opt-in, F12 stop; separate from normal CI |
+| Japanese IME | `pwsh -File scripts/verify-desktop.ps1 -SelectedDesktop -Scenario ja-JP` | Requires installed/selected Japanese IME; missing prerequisite fails as uncovered |
+| Resources and codec | `cargo test -p view-resource --all-features --locked` | Request races, stream/backpressure, schema/asset budgets, opt-in BMP |
+| Public authoring | `cargo test -p view --all-features --locked` | Nested keyed branches and retained/immediate islands |
+| Community Markdown | `cargo test -p view-markdown --locked` | Specialized block preview profile, no renderer/network dependency |
+| Independent Markdown/resources | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --features markdown,resources --locked --target-dir target/consumer` | Separate workspace/lockfile and profile adapter |
+| Application proofs | `cargo run -p view-application-proofs --locked` | Deterministic editor, storefront and IDE workflows |
+| Application GPU | `cargo run -p view-application-proofs --locked -- --gpu dx12` | Scene/gizmo/text/asset offscreen readback |
+| Application native | `cargo run -p view-application-proofs --features native --locked -- --run-hidden` | Three hidden Windows/DX12 surfaces; no physical input |
 | Core alone | `cargo test -p view-core --no-default-features --locked` | Runtime contracts without facade or qualification dependencies |
 | Canvas contracts | `cargo test -p view-core --test canvas_contracts --locked` | CPU precision, pan/zoom, snapshot, hit and semantic contracts |
 | Independent canvas consumer | `cargo test --manifest-path tests/compatibility/facade-consumer/Cargo.toml --test canvas --locked --target-dir target/consumer` | Canvas facade without optional backend features |

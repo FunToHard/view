@@ -1,0 +1,23 @@
+[package]
+name = "view-tooling"
+description = "Explicitly enabled local CLI and optional MCP transports for view automation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-automation.workspace = true
+view-core.workspace = true
+view-testing.workspace = true
+serde_json.workspace = true
+rmcp = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+mcp = ["dep:rmcp", "dep:tokio"]
+
+[lints]
+workspace = true

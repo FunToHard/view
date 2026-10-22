@@ -10,6 +10,10 @@
 
 #![forbid(unsafe_code)]
 
+pub mod authoring;
+#[cfg(feature = "resources")]
+pub use view_resource as resources;
+
 /// Backend-independent canvas transforms and coherent draw/interaction records.
 pub use view_core::canvas;
 /// Host service handoff and committed semantics bridge.

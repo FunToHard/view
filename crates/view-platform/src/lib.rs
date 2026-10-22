@@ -29,3 +29,6 @@ pub use events::{ImeEvent, InputStateTracker, PlatformWindowEvent, translate_win
 pub use services::{CursorIcon, CursorService, ImeService};
 pub use shell::{PlatformShell, WindowStateSnapshot};
 pub use window::{PlatformWindow, WindowLifecycle};
+/// Explicitly enabled Windows desktop automation adapter; never installed automatically.
+#[cfg(feature = "desktop-input")]
+pub mod desktop_input;

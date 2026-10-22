@@ -37,6 +37,16 @@ try {
     Invoke-Cargo @('clippy','--workspace','--all-targets','--locked','--','-D','warnings')
     Invoke-Cargo @('test','--workspace','--locked')
     Invoke-Cargo @('doc','--workspace','--no-deps','--locked')
+    Invoke-Cargo @('clippy','-p','view-automation','-p','view-tooling','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view-automation','-p','view-tooling','--all-features','--locked')
+    Invoke-Cargo @('doc','-p','view-automation','-p','view-tooling','--all-features','--no-deps','--locked')
+    Invoke-Cargo @('clippy','-p','view','-p','view-resource','-p','view-markdown','-p','view-application-proofs','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-Cargo @('test','-p','view','-p','view-resource','-p','view-markdown','-p','view-application-proofs','--all-targets','--all-features','--locked')
+    Invoke-Cargo @('doc','-p','view','-p','view-resource','-p','view-markdown','-p','view-application-proofs','--all-features','--no-deps','--locked')
+    Invoke-Cargo @('run','-p','view-application-proofs','--locked')
+    foreach ($example in @('minimal','form','keyed_list','async_branch','two_windows','immediate','custom_control','viewport')) {
+        Invoke-Cargo @('run','-p','view','--features','controls,resources','--example',$example,'--locked')
+    }
     Invoke-Cargo @('test','-p','view-core','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-testing','--no-default-features','--locked')
     Invoke-Cargo @('test','-p','view-text','--no-default-features','--locked')
@@ -66,6 +76,7 @@ try {
     Invoke-Cargo @('check','-p','view','--no-default-features','--locked')
     Invoke-Cargo @('check','-p','view','--all-features','--locked')
     # Independent workspace/lockfile, unaffected by root feature unification.
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','automation','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('check','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('run','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','harness','--locked','--target-dir','target/consumer')
@@ -73,6 +84,7 @@ try {
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','text-shaping','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','wgpu','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','scene','--locked','--target-dir','target/consumer')
+    Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','markdown,resources','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','controls','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','accessibility','--locked','--target-dir','target/consumer')
     Invoke-Cargo @('test','--manifest-path','tests/compatibility/facade-consumer/Cargo.toml','--features','controls-render','--locked','--target-dir','target/consumer')
@@ -82,6 +94,8 @@ try {
     & "$PSScriptRoot/dependency-inventory.ps1" -Target $hostTriple
     if ($IsWindows) { Invoke-Cargo @('run','-p','platform-probe','--locked') }
     if ($Gpu) {
+        Invoke-Cargo @('run','-p','view-application-proofs','--features','automation','--locked','--','--gpu',$Backend)
+        if ($IsWindows) { Invoke-Cargo @('run','-p','view-application-proofs','--features','native','--locked','--','--run-hidden') }
         Invoke-Cargo @('run','-p','dependency-probe','--bin','gpu','--locked','--',$Backend)
         Invoke-Cargo @('run','-p','view-wgpu','--example','offscreen','--locked','--',$Backend)
         Invoke-Cargo @('run','-p','view-wgpu','--features','scene','--example','scene','--locked','--',$Backend)
