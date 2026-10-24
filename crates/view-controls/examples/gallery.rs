@@ -900,8 +900,10 @@ impl Gallery {
     }
 
     fn prepare_input(&mut self, scale: ScaleFactor, now: u64) -> Result<()> {
-        for id in &self.ids {
-            self.prepare_input_for(*id, scale, now)?;
+        // Preparing a widget mutably updates the runtime, so don't keep an
+        // immutable borrow of the ID list across that update.
+        for id in self.ids.clone() {
+            self.prepare_input_for(id, scale, now)?;
         }
         Ok(())
     }

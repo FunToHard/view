@@ -1167,7 +1167,15 @@ impl PlatformHandler for App {
                         self.handle_key(event, shell, event_loop, &mut clipboard)?;
                     }
                     #[cfg(not(windows))]
-                    self.handle_key(event, shell, event_loop, &mut self.clipboard)?;
+                    {
+                        // `handle_key` mutably borrows the app as well as the
+                        // clipboard field. Move the in-memory clipboard out
+                        // for the call, then restore it even if handling fails.
+                        let mut clipboard = std::mem::take(&mut self.clipboard);
+                        let result = self.handle_key(event, shell, event_loop, &mut clipboard);
+                        self.clipboard = clipboard;
+                        result?;
+                    }
                     window.request_redraw();
                 }
                 PlatformWindowEvent::TextInput(text) => {
