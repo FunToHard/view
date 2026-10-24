@@ -1,8 +1,69 @@
 # Decision baseline and refinement log
 
+Priority amendment — 2026-10-23: the owner authorized building UI controls before
+finishing remaining framework milestones. Unfinished implementation/qualification
+items are deferred from the active queue, not marked passed or removed from release
+requirements. Work proceeds through the UI-* entries in the canonical implementation
+checklist: extend the existing gallery and shared behaviors first, then dropdowns,
+menus/dialogs and collection controls. Accessibility, IME, lifecycle and performance
+acceptance remain attached to each applicable control. Routine framework fixes are
+limited to concrete control requirements; advanced docking and unrelated capabilities
+remain deferred.
+
 Revision: 0.4 — 2026-10-07. Baseline selected under the owner's explicit request to finalize decisions and continue planning. Windows 11 x64, GitHub Actions, and MIT OR Apache-2.0 are delegated defaults, not explicit questionnaire answers. No implementation is authorized by this planning update.
 
 ## Accepted requirements
+
+Memory-budget clarification (2026-10-24): the owner permits compromising on the
+memory target if necessary but explicitly excludes software rendering. Use
+hardware-GPU staged measurements to separate native/window, device/swapchain,
+renderer and text/control costs before selecting a revised budget. Report both
+working set and private commitment; a hidden minimal-form measurement does not
+cover full application/IME/accessibility overhead. Reproduction:
+[GPU memory guide](../guides/gpu-memory.md).
+
+DX12 allocator follow-up (2026-10-24): wgpu 30.0.1's default performance
+memory hint reserves 192 MiB of reported DX12 suballocation blocks at device
+creation in the measured host. The memory-usage hint lowers that to 12 MiB and
+manual 16–64 MiB to 24 MiB; after 1,000 edit/render iterations the measured
+private commitment favored manual sizing, while idle commitment favored
+MemoryUsage. These are probe-only variants on one NVIDIA host. No framework
+default or public policy API changes until realistic churn and frame-latency
+trade-offs are qualified. Evidence and reproduction:
+[GPU memory guide](../guides/gpu-memory.md).
+
+Profile-guided optimization (2026-10-24): `ShapedText` shares immutable layout
+storage instead of cloning cosmic-text buffers and geometry on cache hits.
+Sampled-image bindings live with renderer-owned textures and are shared by
+prepared frames, avoiding per-draw texture-view/binding creation. Existing
+font/device identity, eviction and prepared-frame lifetime contracts remain.
+No dependency or unsafe-code changes. Reason and acceptance evidence:
+[renderer evidence](../plan/evidence/m3a-renderer.md).
+
+M3A cache follow-up (2026-10-23): bound retained GPU text draws by Budgets::max_text_entries as well as atlas accounting. This prevents edit/resize presentation keys from retaining draw resources indefinitely. Prepared frames own evicted draws independently. Evidence: the DX12 offscreen two-entry/100-key churn and retained-frame pixel comparison, plus scripts/verify.ps1, passed locally.
+
+M3A resize correction (2026-10-23): also bound retained vertex/index buffer pairs
+by `Budgets::max_buffer_entries` (default 256, zero disables retention). Resize
+changes normalized geometry keys; thousands of tiny GPU resources have driver
+overhead far beyond their payload-byte accounting. Prepared frames retain evicted
+buffers. Ignore duplicate surface sizes while preserving initial/resume
+configuration, and poll completion in the gallery. Acceptance and local memory
+measurements: [M3A renderer evidence](../plan/evidence/m3a-renderer.md).
+
+M3A resize latency follow-up (2026-10-23): cache mesh positions in physical pixels
+and convert to clip coordinates in the shader with an immutable per-frame
+viewport uniform. This removes size-only mesh allocation churn without mutating
+in-flight geometry or projection. The gallery paints on native resize delivery
+instead of deferring that paint to a separate redraw event. Semantic bounds still
+update with the client size. Acceptance: [M3A renderer evidence](../plan/evidence/m3a-renderer.md).
+
+M3A cache correction, 2026-10-22: immutable shaped results now carry clone-stable
+identity. The renderer uses that identity rather than the address of a caller's
+`Arc` wrapper. Reason: controls wrap cached layouts on every repaint, causing
+duplicate retained text renderers during idle operation. Cache ownership and
+font/device epochs are unchanged; new shaping results have new identities.
+CPU identity and GPU fresh-wrapper regression evidence is recorded in
+[M3A evidence](../plan/evidence/m3a-renderer.md).
 
 M6 implementation refinement, 2026-10-22: `view-webview` separates portable
 ownership/bridge contracts from a Windows-only, UI-thread WebView2 adapter.

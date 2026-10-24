@@ -25,5 +25,9 @@ gallery = ["render", "accessibility", "dep:view-platform", "dep:winit"]
 name = "gallery"
 required-features = ["gallery"]
 
+[[example]]
+name = "memory_probe"
+required-features = ["gallery"]
+
 [lints]
 workspace = true

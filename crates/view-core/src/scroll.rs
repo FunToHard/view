@@ -176,15 +176,20 @@ impl VirtualScroll {
         viewport_height: f32,
         buffer_items: usize,
     ) -> Range<usize> {
-        if self.total_items == 0 || self.item_extent <= 0.0 {
+        if self.total_items == 0 || !self.item_extent.is_finite() || self.item_extent <= 0.0 {
             return 0..0;
         }
 
-        let first_visible = (scroll_y / self.item_extent).floor().max(0.0) as usize;
-        let visible_count = (viewport_height / self.item_extent).ceil() as usize + 1;
+        let first_visible =
+            ((scroll_y / self.item_extent).floor().max(0.0) as usize).min(self.total_items);
+        let visible_count =
+            ((viewport_height / self.item_extent).ceil() as usize).saturating_add(1);
 
         let start = first_visible.saturating_sub(buffer_items);
-        let end = (first_visible + visible_count + buffer_items).min(self.total_items);
+        let end = first_visible
+            .saturating_add(visible_count)
+            .saturating_add(buffer_items)
+            .min(self.total_items);
 
         start..end
     }

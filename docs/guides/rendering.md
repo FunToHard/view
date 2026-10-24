@@ -7,6 +7,13 @@ types when sharing resources. Align the Rust crate version as well as the device
 
 ## Preparing and presenting
 
+Prepare the GPU frame before acquiring/reconfiguring a native surface, so uploads
+and text preparation do not extend the interval between replacing swapchain
+buffers and presenting new content. If acquisition returns `Retry` or
+`Reconfigure`, schedule another redraw; do not silently discard the request.
+`Suspended` waits for a size/visibility change. The controls gallery follows this
+order and sends winit's pre-present notification before presentation.
+
 Create a wgpu instance and request an adapter, passing the native surface as
 `compatible_surface` when applicable. `GpuContext::request` checks required
 features and limits before requesting a device. Host-owned applications instead
@@ -31,6 +38,17 @@ their own queue submission. Do not discard a prepared frame after encoding while
 retaining an unsubmitted encoder indefinitely: acknowledge or discard that work.
 Call device polling to deliver completion callbacks and release frame slots.
 GPU completion, queue presentation and actual monitor scanout are distinct.
+
+Text cache identity follows the immutable `ShapedText` result, including clones
+returned by the shaping cache. A newly allocated `Arc<ShapedText>` wrapper does
+not create new content. `shares_layout` distinguishes clones from new shaping
+results; changed metrics, font collections, or reshaping after eviction retain
+distinct identities. This prevents idle repaints from retaining duplicate GPU
+text entries. Origin, clip, color, transform, scale and target size still
+participate in the renderer cache key.
+Retained text draws are also bounded by `Budgets::max_text_entries` (default 256).
+Editing or resizing cannot accumulate unlimited presentation keys. Prepared frames
+retain evicted draws until submission completes; atlas epoch lifetime is unchanged.
 
 `WindowSurface` coalesces resize requests at acquisition and suspends zero-size
 or occluded work. Its acquired frame borrows the surface exclusively, preventing
@@ -71,6 +89,29 @@ importing another revision yields another ID; eviction makes the old ID fail
 with `StaleResource`. Geometry uses full path/stroke keys, and immutable vertex/
 index buffers use their complete byte content. Neither cache reuses mutable GPU
 storage underneath a prepared frame.
+
+Mesh buffers store transformed physical-pixel positions. Window-size conversion
+to clip space happens in the vertex shader using an immutable, frame-owned
+16-byte viewport uniform. Size-only changes therefore reuse otherwise unchanged
+mesh buffers. DPI, transform, color, UV or actual geometry changes still produce
+distinct keys. Each prepared frame owns its projection, including full-size
+isolated layers; preparing a later size never mutates an earlier frame.
+
+Sampled-image bindings are owned alongside their immutable textures. Solid draws
+share the renderer's white-texture binding, while uploaded/imported images each
+reuse their own binding. Prepared frames clone binding handles, preserving
+textures after image eviction. Fresh isolated-layer targets get fresh bindings;
+there is no unbounded independent binding cache. The cumulative
+`CacheStats::sampled_bindings_created` counts these retained bindings, excluding
+temporary import-validation, glyphon and frame-viewport bindings.
+
+`Budgets::max_buffer_entries` (default 256) also caps retained vertex/index
+buffer pairs. Tiny meshes have driver/resource overhead that their payload-byte
+budget cannot measure. Zero disables retention; prepared frames still own their
+buffers. `CacheStats::buffer_entries` reports retained pairs, not total live GPU
+resources. Hosts must poll GPU completion so submitted resources can retire.
+Repeated unchanged-size surface resize requests are ignored; restoring an
+occluded surface still schedules configuration.
 
 Glyph atlases are grouped by retained font collection identity. Font reload creates
 a new namespace. Labels share an atlas, but live atlas slots are never trimmed or
@@ -135,10 +176,14 @@ invalidation. Callback failure or device loss does not promise successful recove
 
 ## Reproducible fixtures
 
+For staged release-build working-set/private-memory measurements on hardware
+DX12, see the [GPU memory guide](gpu-memory.md).
+
 ```text
 cargo test -p view-wgpu --locked
 cargo run -p view-wgpu --example offscreen --locked -- dx12
 cargo run -p view-wgpu --example surface --locked -- --run-hidden dx12
+cargo run -p view-controls --features gallery --example gallery --locked -- --resize-soak dx12
 pwsh -File scripts/verify.ps1 -Gpu -Backend dx12
 ```
 

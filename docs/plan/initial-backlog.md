@@ -1,5 +1,15 @@
 # Initial implementation backlog
 
+Priority amendment — 2026-10-23: the owner authorized building UI controls before
+finishing remaining framework milestones. Unfinished implementation/qualification
+items are deferred from the active queue, not marked passed or removed from release
+requirements. Work proceeds through the UI-* entries in the canonical implementation
+checklist: extend the existing gallery and shared behaviors first, then dropdowns,
+menus/dialogs and collection controls. Accessibility, IME, lifecycle and performance
+acceptance remain attached to each applicable control. Routine framework fixes are
+limited to concrete control requirements; advanced docking and unrelated capabilities
+remain deferred.
+
 Revision: 0.4. Status: BOOT-01 repository setup is complete locally; broader M0/M1 work remains planned. This backlog decomposes M0/M1 from the [project plan](README.md); later milestones retain their acceptance gates there.
 
 ## Bootstrap evidence — 2026-10-07

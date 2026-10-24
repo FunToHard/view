@@ -48,6 +48,10 @@ Run `cargo run -p view-application-proofs --locked` for deterministic applicatio
 flows; native/GPU modes are explicit. [M4 evidence](docs/plan/evidence/m4-authoring-proofs.md)
 distinguishes local implementation checks from unexecuted platform/native gates.
 
+For a small native multiline text editor built on the shared controls and
+retained runtime, see [View Pad](examples/view-pad/README.md) and run
+`cargo run -p view-pad --release --locked`.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and [AGENTS.md](AGENTS.md)
 for repository guidance. From the repository root:
 

@@ -1,5 +1,5 @@
 //! Explicit modes only: --headless, --gpu <backend>, --run-hidden <backend>,
-//! --show <backend>. Only --show opens an interactive window.
+//! --resize-soak <backend>, --show <backend>. Only --show opens an interactive window.
 use std::{
     future::Future,
     sync::Arc,
@@ -74,6 +74,8 @@ enum Widget {
     Field(TextField, Style),
     List(VirtualList),
     Radio(RadioGroup),
+    Tabs(TabList),
+    TabPanel,
     Tree(Tree),
 }
 impl Widget {
@@ -89,6 +91,7 @@ impl Widget {
             Self::Button(b) => b.behavior.set_focused(focus),
             Self::Check(c) => c.button.behavior.set_focused(focus),
             Self::Radio(group) => group.set_focused(focus),
+            Self::Tabs(group) => group.set_focused(focus),
             Self::Slider(s) => {
                 s.focused = focus;
                 if !focus {
@@ -126,6 +129,19 @@ impl Widget {
                 node.actions = vec![SemanticAction::Focus];
                 ControlSemantics::new(node)
             }
+            Self::Tabs(s) => {
+                let mut node = SemanticNode::new(id, Role::Custom("tab-list".into()));
+                node.name = Some("Control guide: Left/Right, Home/End".into());
+                node.value = Some(s.selected().into());
+                node.bounds = bounds;
+                node.actions = vec![SemanticAction::Focus];
+                ControlSemantics::new(node)
+            }
+            Self::TabPanel => {
+                let mut node = SemanticNode::new(id, Role::Custom("tab-panel".into()));
+                node.bounds = bounds;
+                ControlSemantics::new(node)
+            }
             Self::Tree(s) => {
                 let mut node = SemanticNode::new(id, Role::Container);
                 node.name = Some("Project tree: arrows expand".into());
@@ -155,7 +171,7 @@ impl Gallery {
         let (window, root) = runtime.open_window(
             Description::new("gallery", (), |_, _, _| Dirty::NONE)
                 .role(Role::Window)
-                .layout(rect(0.0, 0.0, 900.0, 680.0)),
+                .layout(rect(0.0, 0.0, 900.0, 740.0)),
         )?;
         let mut this = Self {
             runtime,
@@ -341,7 +357,34 @@ impl Gallery {
             rect(720.0, 345.0, 150.0, 156.0),
             true,
         )?;
-        this.add("footer",Widget::Label(Label::new("Preliminary profiles: CPU/GPU checks are separate from physical native certification.")),rect(24.0,590.0,850.0,36.0),false)?;
+        this.add(
+            "tabs",
+            Widget::Tabs(TabList::new(
+                [
+                    ("overview", "Overview", false),
+                    ("keyboard", "Keyboard", false),
+                    ("later", "Later", true),
+                    ("coverage", "Coverage", false),
+                ]
+                .into_iter()
+                .map(|(key, label, disabled)| TabOption {
+                    key: key.into(),
+                    label: label.into(),
+                    disabled,
+                })
+                .collect(),
+                None,
+            )?),
+            rect(24.0, 518.0, 846.0, 38.0),
+            true,
+        )?;
+        this.add(
+            "tab-panel",
+            Widget::TabPanel,
+            rect(24.0, 564.0, 846.0, 44.0),
+            false,
+        )?;
+        this.add("footer",Widget::Label(Label::new("Preliminary profiles: CPU/GPU checks are separate from physical native certification.")),rect(24.0,680.0,850.0,36.0),false)?;
         this.runtime.flush(&mut ())?;
         Ok(this)
     }
@@ -405,6 +448,25 @@ impl Gallery {
         scale: ScaleFactor,
         now: u64,
     ) -> Result<(PaintSnapshot, accesskit::TreeUpdate)> {
+        let selected = self
+            .ids
+            .iter()
+            .find_map(|id| match self.runtime.state::<Widget>(*id).ok()? {
+                Widget::Tabs(tabs) => Some(tabs.selected()),
+                _ => None,
+            })
+            .unwrap_or("overview");
+        let panel_text = match selected {
+            "keyboard" => {
+                "Tab enters/leaves the group. Left/Right wrap; Home/End select endpoints. Disabled tabs are skipped."
+            }
+            "coverage" => {
+                "Preview: CPU and rendering checks are separate from native IME and assistive-technology certification."
+            }
+            _ => {
+                "Explore controls above: enabled/disabled buttons, mixed checkbox, radio choices, ranges and editable/read-only text."
+            }
+        };
         self.runtime.flush(&mut ())?;
         self.revision = self.revision.checked_next()?;
         self.candidate = None;
@@ -426,6 +488,9 @@ impl Gallery {
         for id in self.ids.clone() {
             let bounds = self.runtime.global_rect(id)?;
             let mut state = self.runtime.state::<Widget>(id)?.semantics(id, bounds);
+            if matches!(self.runtime.state::<Widget>(id)?, Widget::TabPanel) {
+                state.node.name = Some(panel_text.into());
+            }
             state.node.focused = focused == Some(id) && !state.node.disabled;
             entries.push(Entry {
                 parent: Some(self.root),
@@ -564,6 +629,38 @@ impl Gallery {
                                 ));
                             }
                         }
+                        Widget::Tabs(group) => {
+                            let width = bounds.size.width / group.options().len() as f32;
+                            for (index, option) in group.options().iter().enumerate() {
+                                let r = rect(
+                                    bounds.left() + index as f32 * width,
+                                    bounds.top(),
+                                    width - 4.0,
+                                    bounds.size.height,
+                                );
+                                let active = group.selected() == option.key;
+                                let tab_style = style.interaction(Interaction {
+                                    disabled: option.disabled,
+                                    focused: group.focused() && active,
+                                    ..Default::default()
+                                });
+                                local.extend(frame(r, &tab_style));
+                                if active {
+                                    local.push(quad(
+                                        rect(r.left(), r.bottom() - 3.0, r.size.width, 3.0),
+                                        style.accent,
+                                    ));
+                                }
+                                labels.push((
+                                    option.label.clone(),
+                                    rect(r.left() + 8.0, r.top() + 7.0, r.size.width - 16.0, 26.0),
+                                    tab_style,
+                                ));
+                            }
+                        }
+                        Widget::TabPanel => {
+                            labels.push((panel_text.into(), bounds, style.clone()));
+                        }
                         Widget::Radio(group) => {
                             for (index, option) in group.options().iter().enumerate() {
                                 let x = bounds.left() + index as f32 * 90.0;
@@ -634,6 +731,25 @@ impl Gallery {
                         ));
                     }
                 }
+                Widget::Tabs(group) => {
+                    let width = bounds.size.width / group.options().len() as f32;
+                    for (index, option) in group.options().iter().enumerate() {
+                        rows.push((
+                            option.key.clone(),
+                            option.label.clone(),
+                            Role::Custom("tab".into()),
+                            rect(
+                                bounds.left() + index as f32 * width,
+                                bounds.top(),
+                                width,
+                                bounds.size.height,
+                            ),
+                            group.selected() == option.key,
+                            group.selected() == option.key,
+                            None,
+                        ));
+                    }
+                }
                 Widget::Radio(group) => {
                     for (index, option) in group.options().iter().enumerate() {
                         rows.push((
@@ -694,6 +810,14 @@ impl Gallery {
                     let mut state = ControlSemantics::new(node);
                     state.selected = Some(selected);
                     state.expanded = expanded;
+                    if let Widget::Tabs(tabs) = self.runtime.state::<Widget>(id)? {
+                        let index = tabs
+                            .options()
+                            .iter()
+                            .position(|option| option.key == key)
+                            .ok_or("missing tab")?;
+                        state = tabs.semantics(index, owner, bounds)?;
+                    }
                     entries.push(Entry {
                         parent: Some(id),
                         state,
@@ -704,7 +828,7 @@ impl Gallery {
         }
         items.push(self.label(
             &self.status.clone(),
-            rect(24.0, 540.0, 850.0, 44.0),
+            rect(24.0, 620.0, 850.0, 44.0),
             &Style::default(),
             scale,
         )?);
@@ -761,6 +885,9 @@ impl Gallery {
                     Widget::Radio(group) => {
                         group.key(&event)?;
                     }
+                    Widget::Tabs(group) => {
+                        group.key(&event)?;
+                    }
                     _ => {}
                 }
                 Ok(None)
@@ -774,24 +901,28 @@ impl Gallery {
 
     fn prepare_input(&mut self, scale: ScaleFactor, now: u64) -> Result<()> {
         for id in &self.ids {
-            let bounds = self.runtime.global_rect(*id)?;
-            let fonts = &mut self.fonts;
-            self.runtime
-                .update(*id, Dirty::NONE, |widget: &mut Widget| -> Result<()> {
-                    match widget {
-                        Widget::Field(field, style) => {
-                            field.prepare(fonts, style, bounds, scale, now)?;
-                        }
-                        Widget::Number(number) => {
-                            number
-                                .field
-                                .prepare(fonts, &Style::default(), bounds, scale, now)?;
-                        }
-                        _ => {}
-                    }
-                    Ok(())
-                })??;
+            self.prepare_input_for(*id, scale, now)?;
         }
+        Ok(())
+    }
+    fn prepare_input_for(&mut self, id: NodeId, scale: ScaleFactor, now: u64) -> Result<()> {
+        let bounds = self.runtime.global_rect(id)?;
+        let fonts = &mut self.fonts;
+        self.runtime
+            .update(id, Dirty::NONE, |widget: &mut Widget| -> Result<()> {
+                match widget {
+                    Widget::Field(field, style) => {
+                        field.prepare(fonts, style, bounds, scale, now)?;
+                    }
+                    Widget::Number(number) => {
+                        number
+                            .field
+                            .prepare(fonts, &Style::default(), bounds, scale, now)?;
+                    }
+                    _ => {}
+                }
+                Ok(())
+            })??;
         Ok(())
     }
     fn pointer(&mut self, event: PointerEvent) -> Result<Option<NodeId>> {
@@ -845,6 +976,21 @@ impl Gallery {
                         }
                         Widget::Slider(slider) => {
                             slider.pointer(event, bounds)?;
+                        }
+                        Widget::Tabs(group)
+                            if event.phase == PointerPhase::Down
+                                && event.button == Some(PointerButton::Primary)
+                                && bounds.contains(event.position) =>
+                        {
+                            let index = ((event.position.x - bounds.left())
+                                / (bounds.size.width / group.options().len() as f32))
+                                as usize;
+                            if let Some(option) =
+                                group.options().get(index).filter(|option| !option.disabled)
+                            {
+                                let key = option.key.clone();
+                                group.select(&key)?;
+                            }
                         }
                         Widget::Radio(group) if event.phase == PointerPhase::Down => {
                             let index = ((event.position.x - bounds.left()) / 90.0) as usize;
@@ -923,6 +1069,7 @@ impl Gallery {
                             }
                         },
                         Widget::Radio(group) => group.select(&key)?,
+                        Widget::Tabs(group) => group.select(&key)?,
                         _ => {}
                     }
                     Ok(())
@@ -994,6 +1141,7 @@ struct App {
     backend: wgpu::Backends,
     started: Instant,
     next_blink: Instant,
+    resize_soak: Option<u32>,
 }
 fn platform(error: impl std::fmt::Display) -> PlatformError {
     PlatformError::EventLoop(error.to_string())
@@ -1025,13 +1173,18 @@ impl App {
             .ok_or("missing accessibility adapter")?
             .publish(self.gallery.revision, tree)?;
         let gpu = self.gpu.as_mut().ok_or("missing GPU")?;
+        gpu.context.device().poll(wgpu::PollType::Poll)?;
+        // Finish uploads and draw preparation before resize can replace the
+        // presented swapchain buffers. Keep the acquire-to-present gap short.
+        let prepared = gpu.renderer.prepare(&snapshot)?;
         gpu.surface.resize(snapshot.size);
-        if let Acquire::Ready(frame) = gpu.surface.acquire(&gpu.context)? {
-            frame.present(
-                &gpu.context,
-                gpu.renderer.prepare(&snapshot)?,
-                Color([0.06, 0.075, 0.1, 1.0]),
-            )?;
+        match gpu.surface.acquire(&gpu.context)? {
+            Acquire::Ready(frame) => {
+                raw.pre_present_notify();
+                frame.present(&gpu.context, prepared, Color([0.06, 0.075, 0.1, 1.0]))?;
+            }
+            Acquire::Retry | Acquire::Reconfigure => raw.request_redraw(),
+            Acquire::Suspended => {}
         }
         Ok(())
     }
@@ -1040,21 +1193,38 @@ impl App {
             .get_window(self.gallery.window)
             .ok_or("missing window")?
             .shared_window();
-        if matches!(
-            event,
-            PlatformWindowEvent::Keyboard(_) | PlatformWindowEvent::Pointer(_)
-        ) {
-            self.gallery.prepare_input(
-                ScaleFactor::new(window.scale_factor() as f32)?,
-                self.started.elapsed().as_millis() as u64,
-            )?;
+        let scale = ScaleFactor::new(window.scale_factor() as f32)?;
+        let now = self.started.elapsed().as_millis() as u64;
+        match &event {
+            PlatformWindowEvent::Pointer(_) => self.gallery.prepare_input(scale, now)?,
+            PlatformWindowEvent::Keyboard(key)
+                if key.phase != KeyPhase::Up
+                    && matches!(
+                        key.key,
+                        Key::Named(
+                            NamedKey::ArrowLeft
+                                | NamedKey::ArrowRight
+                                | NamedKey::ArrowUp
+                                | NamedKey::ArrowDown
+                        )
+                    ) =>
+            {
+                if let Some(id) = self.gallery.runtime.focused(self.gallery.window)? {
+                    self.gallery.prepare_input_for(id, scale, now)?;
+                }
+            }
+            _ => {}
         }
         match event {
             PlatformWindowEvent::CloseRequested => {
                 shell.close_window(self.gallery.window)?;
                 return Ok(());
             }
-            PlatformWindowEvent::RedrawRequested => return self.draw(shell),
+            // Paint the current client size before returning from native resize
+            // delivery, rather than waiting for a separate redraw notification.
+            PlatformWindowEvent::RedrawRequested | PlatformWindowEvent::Resized { .. } => {
+                return self.draw(shell);
+            }
             PlatformWindowEvent::Keyboard(event) => {
                 #[cfg(windows)]
                 {
@@ -1174,7 +1344,7 @@ impl PlatformHandler for App {
                     self.gallery.window,
                     PlatformWindow::default_attributes(
                         "view control gallery",
-                        LogicalSize::new(900.0, 680.0),
+                        LogicalSize::new(900.0, 740.0),
                     )
                     .with_visible(false)
                     .with_active(false),
@@ -1200,7 +1370,7 @@ impl PlatformHandler for App {
                         widget.field().unwrap().preedit("preedit", Some((7, 7)))
                     })??;
             }
-            let (_, tree) = self.gallery.prepare([900, 680], ScaleFactor::ONE, 0)?;
+            let (_, tree) = self.gallery.prepare([900, 740], ScaleFactor::ONE, 0)?;
             shell.enable_accessibility(
                 event_loop,
                 self.gallery.window,
@@ -1224,7 +1394,7 @@ impl PlatformHandler for App {
                 wgpu::Features::empty(),
                 wgpu::Limits::default(),
             ))??;
-            let surface = WindowSurface::new(surface, &adapter, &context, [900, 680])?;
+            let surface = WindowSurface::new(surface, &adapter, &context, [900, 740])?;
             let renderer = Renderer::new(context.clone(), surface.format(), Budgets::default())?;
             self.gpu = Some(Gpu {
                 context,
@@ -1232,13 +1402,13 @@ impl PlatformHandler for App {
                 surface,
             });
             self.draw(shell)?;
-            if self.hidden {
+            if self.hidden && self.resize_soak.is_none() {
                 println!(
                     "PASS hidden gallery surface + AccessKit installation/update + IME candidate geometry service call; no native-client or physical-input certification"
                 );
                 shell.close_window(self.gallery.window)?;
                 event_loop.exit();
-            } else {
+            } else if !self.hidden {
                 self.gallery.fonts = CosmicBackend::system(128);
                 window.set_visible(true);
                 window.request_redraw();
@@ -1265,6 +1435,44 @@ impl PlatformHandler for App {
         shell: &mut PlatformShell,
         event_loop: &ActiveEventLoop,
     ) -> std::result::Result<(), PlatformError> {
+        if let Some(count) = self.resize_soak {
+            if count >= 1000 {
+                event_loop.exit();
+                return Ok(());
+            }
+            if self.started.elapsed() > Duration::from_secs(180) {
+                return Err(platform("Resize soak timeout"));
+            }
+            let window = shell
+                .get_window(self.gallery.window)
+                .ok_or_else(|| platform("missing soak window"))?
+                .shared_window();
+            let phase = count % 400;
+            let step = if phase < 200 { phase } else { 399 - phase };
+            let _ =
+                window.request_inner_size(winit::dpi::PhysicalSize::new(900 + step, 740 + step));
+            self.draw(shell).map_err(platform)?;
+            let completed = count + 1;
+            if completed.is_multiple_of(100) {
+                println!(
+                    "resize {completed}: {:?}",
+                    self.gpu.as_ref().unwrap().renderer.cache_stats()
+                );
+            }
+            self.resize_soak = Some(completed);
+            if completed == 1000 {
+                if !self.gpu.as_ref().unwrap().context.take_errors().is_empty() {
+                    return Err(platform("GPU validation error"));
+                }
+                println!("PASS 1000 native resize/draw cycles");
+                self.gpu = None;
+                shell.close_window(self.gallery.window)?;
+                event_loop.exit();
+            } else {
+                event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+            }
+            return Ok(());
+        }
         if let Some(adapter) = shell.accessibility_mut(self.gallery.window) {
             for queued in adapter.drain()? {
                 match self.gallery.bridge.route(queued.revision, &queued.request) {
@@ -1328,7 +1536,7 @@ fn main() -> Result<()> {
     profiles()?;
     let mut gallery = Gallery::new()?;
     if mode == "--headless" {
-        let (paint, tree) = gallery.prepare([900, 680], ScaleFactor::ONE, 0)?;
+        let (paint, tree) = gallery.prepare([900, 740], ScaleFactor::ONE, 0)?;
         assert!(paint.items.len() > 30);
         assert!(tree.nodes.len() > 15);
         println!(
@@ -1369,7 +1577,7 @@ fn main() -> Result<()> {
                 field.preedit("preedit selection", Some((0, 7)))
             })??;
         for scale in [1.0, 1.5, 2.0] {
-            let size = [(900.0 * scale) as u32, (680.0 * scale) as u32];
+            let size = [(900.0 * scale) as u32, (740.0 * scale) as u32];
             let (snapshot, _) = gallery.prepare(size, ScaleFactor::new(scale)?, 0)?;
             let target = context.target(size)?;
             let readback = renderer
@@ -1441,10 +1649,10 @@ fn main() -> Result<()> {
         );
         return Ok(());
     }
-    if mode != "--show" && mode != "--run-hidden" {
+    if mode != "--show" && mode != "--run-hidden" && mode != "--resize-soak" {
         return Err("unknown gallery mode".into());
     }
-    let hidden = mode == "--run-hidden";
+    let hidden = mode != "--show";
     PlatformApp::new(
         App {
             gallery,
@@ -1453,10 +1661,15 @@ fn main() -> Result<()> {
             backend,
             started: Instant::now(),
             next_blink: Instant::now() + Duration::from_millis(500),
+            resize_soak: (mode == "--resize-soak").then_some(0),
         },
         AppConfig {
             run_hidden: hidden,
-            max_iterations: if hidden { Some(2) } else { None },
+            max_iterations: if mode == "--run-hidden" {
+                Some(2)
+            } else {
+                None
+            },
         },
     )?
     .run()?;
@@ -1514,5 +1727,71 @@ mod tests {
             panic!("button expected")
         };
         assert!(!button.behavior.state().pressed);
+    }
+}
+
+#[cfg(test)]
+mod tab_gallery_tests {
+    use super::*;
+    #[test]
+    fn tabs_switch_panel_and_publish_disabled_and_selected_accessibility() {
+        let mut gallery = Gallery::new().unwrap();
+        let id = *gallery
+            .ids
+            .iter()
+            .find(|id| matches!(gallery.runtime.state::<Widget>(**id), Ok(Widget::Tabs(_))))
+            .unwrap();
+        gallery.focus(Some(id), 0).unwrap();
+        gallery
+            .key(
+                KeyboardEvent {
+                    key: Key::Named(NamedKey::ArrowRight),
+                    phase: KeyPhase::Down,
+                    modifiers: Modifiers::default(),
+                    timestamp: 1,
+                },
+                &mut MemoryClipboard::default(),
+            )
+            .unwrap();
+        let (paint, tree) = gallery.prepare([900, 740], ScaleFactor::ONE, 1).unwrap();
+        assert!(!paint.items.is_empty());
+        let Widget::Tabs(tabs) = gallery.runtime.state::<Widget>(id).unwrap() else {
+            panic!()
+        };
+        assert_eq!(tabs.selected(), "keyboard");
+        let nodes: Vec<_> = tree.nodes.iter().map(|(_, node)| node).collect();
+        assert_eq!(
+            nodes
+                .iter()
+                .filter(|node| node.role() == accesskit::Role::Tab)
+                .count(),
+            4
+        );
+        assert!(
+            nodes
+                .iter()
+                .any(|node| node.role() == accesskit::Role::Tab && node.is_disabled())
+        );
+        assert!(
+            nodes
+                .iter()
+                .any(|node| node.role() == accesskit::Role::TabPanel
+                    && node.label().is_some_and(|label| label.contains("Home/End")))
+        );
+        gallery
+            .key(
+                KeyboardEvent {
+                    key: Key::Named(NamedKey::ArrowRight),
+                    phase: KeyPhase::Down,
+                    modifiers: Modifiers::default(),
+                    timestamp: 2,
+                },
+                &mut MemoryClipboard::default(),
+            )
+            .unwrap();
+        let Widget::Tabs(tabs) = gallery.runtime.state::<Widget>(id).unwrap() else {
+            panic!()
+        };
+        assert_eq!(tabs.selected(), "coverage");
     }
 }

@@ -7,6 +7,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
     rc::{Rc, Weak},
+    slice,
     sync::Arc,
 };
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
@@ -27,6 +28,44 @@ use winit::{
 fn native(e: windows::core::Error) -> Error {
     Error::Native(e.to_string())
 }
+
+fn bounded_utf16_to_string(units: &[u16], max_utf8_bytes: usize) -> Option<String> {
+    let mut bytes = 0usize;
+    for decoded in char::decode_utf16(units.iter().copied()) {
+        let character = decoded.ok()?;
+        bytes = bytes.checked_add(character.len_utf8())?;
+        if bytes > max_utf8_bytes {
+            return None;
+        }
+    }
+    String::from_utf16(units).ok()
+}
+
+fn bounded_taskmem_string(value: &CoTaskMemPWSTR<'_>, max_utf8_bytes: usize) -> Option<String> {
+    let owned = value.as_ref();
+    let pointer = owned.as_pcwstr().0;
+    if pointer.is_null() {
+        return None;
+    }
+
+    // A valid CoTaskMemPWSTR is a live, NUL-terminated allocation. Scan at most
+    // max_utf8_bytes + 1 UTF-16 units: any longer valid string necessarily
+    // exceeds the UTF-8 byte budget, while the owner remains borrowed here.
+    let mut length = 0usize;
+    while length <= max_utf8_bytes {
+        // SAFETY: WebView2 returned this CoTaskMem string and `value` keeps its
+        // allocation alive. The scan is bounded and stops at its terminator.
+        if unsafe { *pointer.add(length) } == 0 {
+            // SAFETY: the preceding scan found the terminator at `length`, so
+            // this slice covers only initialized UTF-16 units before it.
+            let units = unsafe { slice::from_raw_parts(pointer, length) };
+            return bounded_utf16_to_string(units, max_utf8_bytes);
+        }
+        length += 1;
+    }
+    None
+}
+
 struct Apartment;
 impl Apartment {
     fn new() -> Result<Self> {
@@ -521,11 +560,12 @@ fn install(
                     args.Source(&mut source)?;
                     args.WebMessageAsJson(&mut json)?;
                 }
-                let source = CoTaskMemPWSTR::from(source).to_string();
-                let json = CoTaskMemPWSTR::from(json).to_string();
-                if json.len() <= 65536
-                    && source.len() <= 4096
-                    && message_bridge.borrow().is_active()
+                let source = CoTaskMemPWSTR::from(source);
+                let json = CoTaskMemPWSTR::from(json);
+                if let (Some(source), Some(json)) = (
+                    bounded_taskmem_string(&source, 4096),
+                    bounded_taskmem_string(&json, 65536),
+                ) && message_bridge.borrow().is_active()
                 {
                     enqueue(&message_weak, Event::Message(id, source, json.into_bytes()));
                 }
@@ -644,6 +684,27 @@ impl Drop for WindowsProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_utf16_conversion_checks_utf8_budget_before_copying() {
+        assert_eq!(
+            bounded_utf16_to_string(&[b'x' as u16; 65_536], 65_536),
+            Some("x".repeat(65_536))
+        );
+        assert!(bounded_utf16_to_string(&[b'x' as u16; 65_537], 65_536).is_none());
+        assert_eq!(
+            bounded_utf16_to_string(&[0xD83D, 0xDE80], 4).as_deref(),
+            Some("🚀")
+        );
+        assert!(bounded_utf16_to_string(&[0xD83D, 0xDE80], 3).is_none());
+    }
+
+    #[test]
+    fn bounded_utf16_conversion_rejects_unpaired_surrogates() {
+        assert!(bounded_utf16_to_string(&[0xD800], 16).is_none());
+        assert!(bounded_utf16_to_string(&[0xDC00], 16).is_none());
+    }
+
     #[test]
     fn page_flood_cannot_discard_cleanup_receipts() {
         let mut inner = Inner {

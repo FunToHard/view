@@ -26,6 +26,11 @@ pub struct Budgets {
     /// Bounds simultaneously prepared/submitted frames, including retired cache
     /// resources held by their immutable bind groups. Poll the device to retire.
     pub max_frames: usize,
+    /// Bounds retained text layouts/renderers independently of estimated GPU bytes.
+    pub max_text_entries: usize,
+    /// Bounds buffer pairs independently of payload bytes and driver overhead.
+    /// Zero disables retention; prepared frames still own their buffers.
+    pub max_buffer_entries: usize,
 }
 impl Default for Budgets {
     fn default() -> Self {
@@ -38,6 +43,8 @@ impl Default for Budgets {
             max_draws: 4096,
             max_layer_depth: 16,
             max_frames: 3,
+            max_text_entries: 256,
+            max_buffer_entries: 256,
         }
     }
 }
@@ -52,10 +59,19 @@ pub struct CacheStats {
     pub glyph_bytes: u64,
     pub glyph_hits: u64,
     pub glyph_evictions: u64,
+    pub text_entries: usize,
+    pub buffer_entries: usize,
+    /// Cumulative retained sampled-image bindings created; excludes temporary
+    /// import-validation bindings and text/viewport bindings.
+    pub sampled_bindings_created: u64,
+}
+struct SampledImage {
+    texture: wgpu::Texture,
+    bindings: wgpu::BindGroup,
 }
 struct Image {
     id: ImageId,
-    texture: wgpu::Texture,
+    sampled: SampledImage,
     metadata: TextureMetadata,
     bytes: u64,
 }
@@ -79,6 +95,7 @@ struct CachedText {
     layout: Arc<view_text::ShapedText>,
     key: Vec<u32>,
     text: Arc<TextDraw>,
+    bytes: u64,
 }
 struct TextDraw {
     renderer: glyphon::TextRenderer,
@@ -98,7 +115,7 @@ pub struct Renderer {
     format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
     sampler: wgpu::Sampler,
-    white: wgpu::Texture,
+    white: SampledImage,
     images: VecDeque<Image>,
     geometry: VecDeque<Geometry>,
     buffers: std::cell::RefCell<VecDeque<CachedBuffers>>,
@@ -166,6 +183,7 @@ impl Renderer {
             &[255; 4],
             wgpu::TextureFormat::Rgba8UnormSrgb,
         );
+        let white = sampled_image(device, &pipeline, &sampler, white);
         let glyph_cache = glyphon::Cache::new(device);
         Ok(Self {
             context,
@@ -181,7 +199,10 @@ impl Renderer {
             atlases: Vec::new(),
             serial: 0,
             budgets,
-            stats: CacheStats::default(),
+            stats: CacheStats {
+                sampled_bindings_created: 1,
+                ..CacheStats::default()
+            },
             glyph_cache,
             live_frames: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         })
@@ -192,6 +213,8 @@ impl Renderer {
     pub fn cache_stats(&self) -> CacheStats {
         let (buffer_bytes, buffer_hits) = self.buffer_stats.get();
         CacheStats {
+            text_entries: self.texts.len(),
+            buffer_entries: self.buffers.borrow().len(),
             buffer_bytes,
             buffer_hits,
             ..self.stats
@@ -326,9 +349,11 @@ impl Renderer {
             generation: self.context.generation(),
             serial: self.serial,
         };
+        let sampled = sampled_image(&self.context.device, &self.pipeline, &self.sampler, texture);
+        self.stats.sampled_bindings_created += 1;
         self.images.push_back(Image {
             id,
-            texture,
+            sampled,
             metadata,
             bytes,
         });
@@ -355,6 +380,33 @@ impl Renderer {
             atlases: Vec::new(),
         };
         let nodes = self.prepare_items(&snapshot.items, snapshot, 0, &mut accounting)?;
+        // Immutable per-frame viewport: preparing a later resize must not change
+        // the projection of an older frame still waiting for submission.
+        accounting.add(16, self.budgets.frame_bytes)?;
+        let viewport_buffer =
+            self.context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("view frame viewport"),
+                    contents: bytemuck::cast_slice(&[
+                        snapshot.size[0] as f32,
+                        snapshot.size[1] as f32,
+                        0.0,
+                        0.0,
+                    ]),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+        let viewport = self
+            .context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("view frame viewport"),
+                layout: &self.pipeline.get_bind_group_layout(1),
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: viewport_buffer.as_entire_binding(),
+                }],
+            });
         Ok(PreparedFrame {
             generation: self.context.generation(),
             revision: snapshot.revision,
@@ -362,6 +414,7 @@ impl Renderer {
             format: self.format,
             nodes,
             pipeline: self.pipeline.clone(),
+            viewport,
             bytes: accounting.bytes,
             lease,
         })
@@ -402,10 +455,17 @@ impl Renderer {
                     );
                     let draw = Draw::new(Primitive::Rect(rect), Color([1.0, 1.0, 1.0, *opacity]));
                     let mesh = rect_mesh(rect)?;
+                    let sampled = sampled_image(
+                        &self.context.device,
+                        &self.pipeline,
+                        &self.sampler,
+                        target.texture.clone(),
+                    );
+                    self.stats.sampled_bindings_created += 1;
                     let composite = self.prepare_mesh(
                         &draw,
                         mesh,
-                        &target.texture,
+                        &sampled,
                         TextureMetadata {
                             alpha: AlphaMode::Premultiplied,
                             ..Default::default()
@@ -461,7 +521,7 @@ impl Renderer {
                             key.extend(draw.color.0.map(f32::to_bits));
                             key.extend(clip);
                             if let Some(i) = self.texts.iter().position(|cached| {
-                                Arc::ptr_eq(&cached.layout, layout) && cached.key == key
+                                cached.layout.shares_layout(layout) && cached.key == key
                             }) {
                                 let cached = self.texts.remove(i).unwrap();
                                 accounting.atlas(
@@ -476,6 +536,13 @@ impl Renderer {
                             }
                             if text_bytes + atlas_bytes > self.budgets.glyph_bytes {
                                 return Err(RenderError::BudgetExceeded);
+                            }
+                            if self.budgets.max_text_entries == 0 {
+                                return Err(RenderError::BudgetExceeded);
+                            }
+                            while self.texts.len() >= self.budgets.max_text_entries {
+                                let old = self.texts.pop_front().expect("nonempty bounded cache");
+                                self.stats.glyph_bytes -= old.bytes;
                             }
                             let mut existing = self
                                 .atlases
@@ -578,6 +645,7 @@ impl Renderer {
                                 clip,
                             });
                             self.texts.push_back(CachedText {
+                                bytes: text_bytes,
                                 layout: layout.clone(),
                                 key,
                                 text: text.clone(),
@@ -597,7 +665,7 @@ impl Renderer {
                             let result = self.prepare_mesh(
                                 draw,
                                 mesh,
-                                &image.texture,
+                                &image.sampled,
                                 image.metadata,
                                 snapshot,
                                 accounting,
@@ -709,7 +777,7 @@ impl Renderer {
         &self,
         draw: &Draw,
         mesh: Mesh,
-        texture: &wgpu::Texture,
+        sampled: &SampledImage,
         metadata: TextureMetadata,
         snapshot: &PaintSnapshot,
         accounting: &mut Accounting,
@@ -738,10 +806,7 @@ impl Renderer {
                 uv[1] = 1.0 - uv[1];
             }
             vertices.push(Vertex {
-                position: [
-                    point.x / snapshot.size[0] as f32 * 2.0 - 1.0,
-                    1.0 - point.y / snapshot.size[1] as f32 * 2.0,
-                ],
+                position: [point.x, point.y],
                 uv,
                 color,
                 straight: if metadata.alpha == AlphaMode::Straight {
@@ -785,8 +850,10 @@ impl Renderer {
             });
             // Key bytes and GPU bytes both count toward this cache's budget.
             let resident_bytes = bytes + key.len() as u64;
-            if resident_bytes <= self.budgets.buffer_bytes {
-                while resident + resident_bytes > self.budgets.buffer_bytes {
+            if self.budgets.max_buffer_entries > 0 && resident_bytes <= self.budgets.buffer_bytes {
+                while resident + resident_bytes > self.budgets.buffer_bytes
+                    || cache.len() >= self.budgets.max_buffer_entries
+                {
                     resident -= cache.pop_front().ok_or(RenderError::BudgetExceeded)?.bytes;
                 }
                 resident += resident_bytes;
@@ -800,31 +867,40 @@ impl Renderer {
             (vertex, index)
         };
         self.buffer_stats.set((resident, hits));
-        let view = texture.create_view(&Default::default());
-        let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("view sampled image"),
-            layout: &self.pipeline.get_bind_group_layout(0),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        });
         Ok(GpuMesh {
             vertex,
             index,
-            bindings,
+            bindings: sampled.bindings.clone(),
             count: mesh.indices.len() as u32,
             clip: scissor(draw.clip, snapshot)?,
-            texture: texture.clone(),
+            texture: sampled.texture.clone(),
         })
     }
 }
+fn sampled_image(
+    device: &wgpu::Device,
+    pipeline: &wgpu::RenderPipeline,
+    sampler: &wgpu::Sampler,
+    texture: wgpu::Texture,
+) -> SampledImage {
+    let view = texture.create_view(&Default::default());
+    let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("view sampled image"),
+        layout: &pipeline.get_bind_group_layout(0),
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+        ],
+    });
+    SampledImage { texture, bindings }
+}
+
 fn upload(
     context: &GpuContext,
     size: [u32; 2],
@@ -961,6 +1037,7 @@ pub struct PreparedFrame {
     format: wgpu::TextureFormat,
     nodes: Vec<Node>,
     pipeline: wgpu::RenderPipeline,
+    viewport: wgpu::BindGroup,
     bytes: u64,
     lease: Arc<FrameLease>,
 }
@@ -1019,7 +1096,14 @@ impl PreparedFrame {
         if size != self.size || format != self.format {
             return Err(RenderError::Invalid("prepared target mismatch".into()));
         }
-        encode_nodes(&self.nodes, &self.pipeline, encoder, view, clear)
+        encode_nodes(
+            &self.nodes,
+            &self.pipeline,
+            &self.viewport,
+            encoder,
+            view,
+            clear,
+        )
     }
     pub fn submit(
         self,
@@ -1190,6 +1274,7 @@ impl Capture {
 fn encode_nodes(
     nodes: &[Node],
     pipeline: &wgpu::RenderPipeline,
+    viewport: &wgpu::BindGroup,
     encoder: &mut wgpu::CommandEncoder,
     target: &wgpu::TextureView,
     clear: Color,
@@ -1203,6 +1288,7 @@ fn encode_nodes(
             encode_nodes(
                 children,
                 pipeline,
+                viewport,
                 encoder,
                 &target.view,
                 Color::TRANSPARENT,
@@ -1238,6 +1324,7 @@ fn encode_nodes(
                 }
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &mesh.bindings, &[]);
+                pass.set_bind_group(1, viewport, &[]);
                 pass.set_vertex_buffer(0, mesh.vertex.slice(..));
                 pass.set_index_buffer(mesh.index.slice(..), wgpu::IndexFormat::Uint32);
                 let [x, y, w, h] = mesh.clip;

@@ -124,6 +124,9 @@ impl SemanticBridge {
                 view_core::Role::Custom(name) if name == "list" => Role::ListBox,
                 view_core::Role::Custom(name) if name == "list-item" => Role::ListBoxOption,
                 view_core::Role::Custom(name) if name == "tree-item" => Role::TreeItem,
+                view_core::Role::Custom(name) if name == "tab" => Role::Tab,
+                view_core::Role::Custom(name) if name == "tab-list" => Role::TabList,
+                view_core::Role::Custom(name) if name == "tab-panel" => Role::TabPanel,
                 _ => Role::GenericContainer,
             };
             let mut node = Node::new(role);

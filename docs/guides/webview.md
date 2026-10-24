@@ -56,6 +56,12 @@ deletes based merely on a stored path or assumes a previous browser has exited.
 The host must reconcile those records with independently established process
 ownership; automatic crash-recovery deletion is not implemented.
 
+If `Provider::start` returns a synchronous error, the provider contract requires
+startup rollback with no process or callback retaining the supplied profile.
+`Manager::open` then removes an owned ephemeral profile immediately; if removal
+fails, both failures and the profile path are reported. Persistent/shared data is
+never removed on this path.
+
 ## Page authority
 
 `PagePolicy` permits exact HTTPS document URLs (a narrower permission than an
@@ -67,8 +73,10 @@ responsible for its application download workflow.
 After a successful navigation observation the host may grant named bridge
 commands. Messages require version, session, current navigation epoch, command and
 typed arguments. Session and epoch are decimal JSON strings so JavaScript does
-not round 64-bit identities. Source and main-frame identity come from the provider, not page
-JSON. The native adapter subscribes only to top-level WebMessageReceived.
+not round 64-bit identities. Source and main-frame identity come from the provider,
+not page JSON. The native adapter subscribes only to top-level WebMessageReceived.
+Before copying COM strings into Rust allocations, it enforces a 4 KiB source limit
+and a 65,536-byte UTF-8 JSON-message limit and rejects malformed UTF-16.
 Navigation attempts and disposal revoke grants. No filesystem, MCP, native add-on
 or desktop-input capability is inherited by a page. Native message notices are
 untrusted input: call `Bridge::decode<T>` before turning one into an app action;

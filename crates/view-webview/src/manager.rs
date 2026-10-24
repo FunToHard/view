@@ -113,7 +113,9 @@ pub struct Start {
     pub bridge: Rc<RefCell<Bridge>>,
 }
 /// Implementations must keep callbacks on the owner thread and report whole-group exit,
-/// not just a single renderer exit. Native child focus/IME/accessibility belongs to the provider.
+/// not just a single renderer exit. A synchronous `start` error must mean startup was
+/// rolled back and no process or callback can still use the supplied profile. Native
+/// child focus/IME/accessibility belongs to the provider.
 pub trait Provider {
     fn start(&mut self, start: Start) -> Result<()>;
     fn events(&mut self) -> Vec<Event>;
@@ -223,7 +225,18 @@ impl<P: Provider> Manager<P> {
             policy,
             bridge: Rc::new(RefCell::new(Bridge::new(session))),
         };
-        self.provider.start(start.clone())?;
+        if let Err(start_error) = self.provider.start(start.clone()) {
+            start.bridge.borrow_mut().close();
+            if start.profile.ephemeral
+                && let Err(cleanup_error) = crate::profile::remove_owned(start.profile.clone())
+            {
+                return Err(Error::Io(format!(
+                    "provider start failed: {start_error}; failed to remove ephemeral profile {}: {cleanup_error}",
+                    start.profile.path.display()
+                )));
+            }
+            return Err(start_error);
+        }
         self.panels.insert(
             id,
             Panel {

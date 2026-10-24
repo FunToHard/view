@@ -188,3 +188,36 @@ fn scroll_clamps_and_preedit_scalar_cursor_maps_to_grapheme_geometry() {
         .unwrap();
     assert_eq!(actual, expected);
 }
+
+#[test]
+fn immutable_layout_identity_survives_cache_hits_but_not_new_shaping() {
+    let mut backend = CosmicBackend::from_fonts(fonts(), 1).unwrap();
+    let first = backend.shape(&request("same text")).unwrap();
+    let source = first.with_raster_source(|buffer, _| std::ptr::from_ref(buffer));
+    let cached = backend.shape(&request("same text")).unwrap();
+    assert_eq!(
+        source,
+        cached.with_raster_source(|buffer, _| std::ptr::from_ref(buffer))
+    );
+    assert_eq!(
+        source,
+        first
+            .clone()
+            .with_raster_source(|buffer, _| std::ptr::from_ref(buffer))
+    );
+    assert!(first.shares_layout(&first.clone()));
+    assert!(first.shares_layout(&backend.shape(&request("same text")).unwrap()));
+    let mut wider = request("same text");
+    wider.font_size = 24.;
+    assert!(!first.shares_layout(&backend.shape(&wider).unwrap()));
+    // Eviction produces a genuinely new shaping result, even for equal text.
+    assert!(!first.shares_layout(&backend.shape(&request("same text")).unwrap()));
+    drop(backend);
+    drop(first);
+    assert_eq!(
+        source,
+        cached.with_raster_source(|buffer, _| std::ptr::from_ref(buffer))
+    );
+    assert_eq!(cached.text().text(), "same text");
+    assert!(cached.font_count() > 0);
+}

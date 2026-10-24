@@ -1,5 +1,6 @@
 use view_core::{
-    Description, Dirty, Key, KeyPhase, KeyboardEvent, LogicalRect, Modifiers, Runtime, Shortcut,
+    CoreError, Description, Dirty, Key, KeyPhase, KeyboardEvent, LogicalRect, Modifiers, Runtime,
+    Shortcut,
 };
 
 #[test]
@@ -90,6 +91,51 @@ fn test_modal_scope_and_focus_restoration() {
     // Close modal dialog -> focus restores to background_field!
     runtime.set_modal_scope(window, None).unwrap();
     assert_eq!(runtime.focused(window).unwrap(), Some(background_field));
+}
+
+#[test]
+fn modal_scope_rejects_stale_and_cross_window_nodes_without_changing_scope() {
+    let mut runtime = Runtime::<(), ()>::new(8).unwrap();
+    let (first_window, first_root) = runtime
+        .open_window(Description::new("first", (), |_, _, _| Dirty::NONE))
+        .unwrap();
+    let first_modal = runtime
+        .mount(
+            first_root,
+            Description::new("first-modal", (), |_, _, _| Dirty::NONE),
+        )
+        .unwrap();
+    let (second_window, second_root) = runtime
+        .open_window(Description::new("second", (), |_, _, _| Dirty::NONE))
+        .unwrap();
+    let second_modal = runtime
+        .mount(
+            second_root,
+            Description::new("second-modal", (), |_, _, _| Dirty::NONE),
+        )
+        .unwrap();
+    let mut model = ();
+    runtime.flush(&mut model).unwrap();
+
+    runtime
+        .set_modal_scope(first_window, Some(first_modal))
+        .unwrap();
+    assert_eq!(
+        runtime.set_modal_scope(first_window, Some(second_modal)),
+        Err(CoreError::ModalBlocked)
+    );
+    assert_eq!(
+        runtime.modal_scope(first_window).unwrap(),
+        Some(first_modal)
+    );
+
+    runtime.unmount(first_modal).unwrap();
+    assert!(matches!(
+        runtime.set_modal_scope(first_window, Some(first_modal)),
+        Err(CoreError::StaleHandle { .. })
+    ));
+    assert_eq!(runtime.modal_scope(first_window).unwrap(), None);
+    assert_eq!(runtime.modal_scope(second_window).unwrap(), None);
 }
 
 #[test]

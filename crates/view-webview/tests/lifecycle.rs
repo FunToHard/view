@@ -12,9 +12,13 @@ struct Mock {
     events: Vec<Event>,
     visible: BTreeMap<PanelId, bool>,
     closes: usize,
+    fail_start: bool,
 }
 impl Provider for Mock {
     fn start(&mut self, s: Start) -> Result<()> {
+        if self.fail_start {
+            return Err(Error::Native("startup rejected".into()));
+        }
         self.visible.insert(s.panel, true);
         self.events.push(Event::Ready(s.panel, 42));
         self.starts.insert(s.panel, s);
@@ -101,6 +105,37 @@ fn settle(m: &mut Manager<Mock>, id: PanelId) {
         std::thread::sleep(Duration::from_millis(2));
     }
     panic!("cleanup did not finish");
+}
+#[test]
+fn synchronous_provider_start_failure_removes_ephemeral_profile() {
+    let (_rt, _, c) = owner();
+    let path = root();
+    let profiles = Profiles::new(&path).unwrap();
+    let mut m = Manager::new(
+        Mock {
+            fail_start: true,
+            ..Default::default()
+        },
+        profiles,
+        Budgets::default(),
+    );
+
+    let result = m.open(
+        1,
+        placement(),
+        policy(),
+        Profile::EphemeralDedicated,
+        Lifetime::DisposeAfterUse,
+        c,
+    );
+
+    assert_eq!(result, Err(Error::Native("startup rejected".into())));
+    let sessions = std::fs::read_dir(&path)
+        .unwrap()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("session-"))
+        .count();
+    assert_eq!(sessions, 0, "failed startup must not orphan its profile");
 }
 #[test]
 fn repeated_disposal_requires_matching_process_exit_and_releases_owned_profiles() {

@@ -1426,12 +1426,19 @@ impl<M, A> Runtime<M, A> {
         self.navigate_focus(window, FocusDirection::Backward)
     }
 
-    /// Set modal scope for a window.
+    /// Set modal scope for a window. A modal node must be live and owned by that window.
     pub fn set_modal_scope(
         &mut self,
         window: WindowId,
         modal: Option<NodeId>,
     ) -> Result<(), CoreError> {
+        self.windows.get(window.handle())?;
+        if let Some(modal) = modal {
+            let node = self.nodes.get(modal.0)?;
+            if node.window != window {
+                return Err(CoreError::ModalBlocked);
+            }
+        }
         let win = self.windows.get_mut(window.handle())?;
         win.focus.set_modal_scope(modal);
         self.changed = true;

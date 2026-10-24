@@ -160,6 +160,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
     };
     let prepared = renderer.prepare(&snapshot)?;
+    let bindings_before = renderer.cache_stats().sampled_bindings_created;
+    // Existing solid/image resources share bindings; each isolated layer alone
+    // needs a new binding because it owns a fresh target texture.
+    for _ in 0..100 {
+        drop(renderer.prepare(&snapshot)?);
+    }
+    assert_eq!(
+        renderer.cache_stats().sampled_bindings_created,
+        bindings_before + 100
+    );
     // Evict the sampled image after preparation: the old prepared bind group
     // must retain its original texture, while new preparation rejects the ID.
     for _ in 0..5 {
@@ -221,6 +231,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(text_pixels.rgba.as_chunks::<4>().0.iter().any(|p| p[3] > 0));
     renderer.prepare(&text)?;
     assert!(renderer.cache_stats().glyph_hits > 0);
+    // Controls wrap cached shaping results in fresh Arcs on every paint.
+    // Those wrappers must not create a new GPU text entry each frame.
+    let before = renderer.cache_stats();
+    for _ in 0..100 {
+        let mut repainted = text.clone();
+        if let Paint::Draw(draw) = &mut repainted.items[0]
+            && let Primitive::Text { layout, .. } = &mut draw.primitive
+        {
+            *layout = Arc::new((**layout).clone());
+        }
+        renderer.prepare(&repainted)?;
+    }
+    let after = renderer.cache_stats();
+    assert_eq!(after.glyph_bytes, before.glyph_bytes);
+    assert_eq!(after.glyph_hits, before.glyph_hits + 100);
+    let mut bounded = Renderer::new(
+        context.clone(),
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        Budgets {
+            max_text_entries: 2,
+            ..Default::default()
+        },
+    )?;
+    let retained = bounded.prepare(&text)?;
+    for x in 0..100 {
+        let mut changed = text.clone();
+        if let Paint::Draw(draw) = &mut changed.items[0] {
+            draw.transform = Transform2D::translation(x as f32, 0.);
+        }
+        bounded.prepare(&changed)?;
+        assert!(bounded.cache_stats().text_entries <= 2);
+    }
+    // Entry eviction must not invalidate a frame already prepared by its owner.
+    let retained_pixels = retained
+        .submit_capture(&context, &target, Color::TRANSPARENT)?
+        .readback(&context)?;
+    assert_eq!(retained_pixels.rgba, text_pixels.rgba);
     let retained_text = renderer.prepare(&text)?;
     let replacement = Arc::new(fonts.shape(&LayoutRequest {
         text: TextSnapshot::new("New fonts", TextRevision::INITIAL),
@@ -464,6 +511,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(RenderError::StaleResource)
     ));
 
+    buffer_cache_fixture(&context, &target)?;
     provider_fixture(&context, &target)?;
     assert!(
         context.take_errors().is_empty(),
@@ -479,6 +527,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "PASS actual GPU shapes, paths, clips, SDR alpha, isolated layers, images, glyph raster/order/font lifetime, cache eviction and immutable revision capture; tolerance 2/255. {:?}",
         renderer.cache_stats()
     );
+    Ok(())
+}
+
+fn buffer_cache_fixture(context: &GpuContext, target: &RenderTarget) -> Result<(), RenderError> {
+    for limit in [0, 2] {
+        let mut renderer = Renderer::new(
+            context.clone(),
+            target.format(),
+            Budgets {
+                max_buffer_entries: limit,
+                ..Budgets::default()
+            },
+        )?;
+        let mut snapshot = PaintSnapshot {
+            revision: Revision::INITIAL,
+            size: target.size(),
+            scale: ScaleFactor::ONE,
+            items: vec![Paint::Draw(Draw::new(
+                Primitive::Rect(rect(10.0, 10.0, 20.0, 20.0)),
+                Color::WHITE,
+            ))],
+        };
+        let retained = renderer.prepare(&snapshot)?;
+        let expected = renderer
+            .prepare(&snapshot)?
+            .submit_capture(context, target, Color::TRANSPARENT)?
+            .readback(context)?;
+        for i in 0..1000 {
+            snapshot.size = [128 + i, 96 + i];
+            drop(renderer.prepare(&snapshot)?);
+            assert!(renderer.cache_stats().buffer_entries <= limit);
+        }
+        assert_eq!(renderer.cache_stats().sampled_bindings_created, 1);
+        if limit > 0 {
+            assert_eq!(renderer.cache_stats().buffer_entries, 1);
+            assert_eq!(renderer.cache_stats().buffer_hits, 1001);
+        }
+        let resized_target = context.target(snapshot.size)?;
+        let resized = renderer
+            .prepare(&snapshot)?
+            .submit_capture(context, &resized_target, Color::TRANSPARENT)?
+            .readback(context)?;
+        near(pixel(&resized, 15, 15), [255; 4]);
+        near(pixel(&resized, 35, 15), [0; 4]);
+        // Actual geometry changes still evict; size-only changes above must not.
+        for i in 0..100 {
+            snapshot.items = vec![quad(rect(i as f32, 0.0, 20.0, 20.0), Color::WHITE)];
+            drop(renderer.prepare(&snapshot)?);
+            assert!(renderer.cache_stats().buffer_entries <= limit);
+        }
+        let actual = retained
+            .submit_capture(context, target, Color::TRANSPARENT)?
+            .readback(context)?;
+        assert_eq!(
+            actual.rgba, expected.rgba,
+            "eviction must preserve prepared geometry"
+        );
+    }
     Ok(())
 }
 

@@ -29,7 +29,9 @@ Call behavior methods once from routed input, then invalidate paint/semantics
   character label of a keyboard shortcut or also insert an IME commit as text.
   Prepare current layout before geometry-dependent input. A stale layout is
   rejected; horizontal navigation has a logical fallback before first preparation.
-  Normal form Tab traverses; a multiline engine may explicitly opt into insertion.
+  `TextField::scroll_by` applies a clamped wheel delta against the prepared layout
+  and reports whether the offset changed. Normal form Tab traverses; a multiline
+  engine may explicitly opt into insertion.
 - Prepare `TextPresentation` with actual style, bounds and DPI. Its clipped
   selection, preedit and caret use the shaping engine's geometry. Pass `candidate`
   to `ImeService::set_ime_cursor_area`; do not add window origin or scale twice.
@@ -109,3 +111,35 @@ not a responsive application template or certification of all controls.
 See [M2B evidence](../plan/evidence/m2b-controls.md) for the per-control matrix and
 remaining native coverage. An unexecuted native requirement remains uncovered;
 passing engine fixtures does not certify a styled text control.
+
+## Horizontal tabs (preview)
+
+`TabList` reuses keyed radio-selection behavior with required selection. Construct
+it from `TabOption` entries (stable unique keys, labels, disabled flags). Empty or
+all-disabled sets are rejected. Programmatic `select` rejects stale/disabled keys
+without changing the previous selection. The host calls `set_focused` as its one
+focus stop enters/leaves focus.
+
+Left/Right wrap over enabled entries; Home/End select the endpoints. Key-up,
+Ctrl/Alt/Meta chords, vertical arrows and Tab are not consumed. Activation is
+automatic on navigation; manual activation, vertical tabs, closing/reordering,
+docking and tear-off are not implemented. Applications own panel lifetime and
+state, hide inactive interactive descendants from focus/hit testing/semantics,
+and decide where focus goes when a panel is removed.
+
+`semantics` exposes a selected tab rather than checkbox state. The existing
+custom-role extension maps tab, tab-list and tab-panel to AccessKit roles. The
+gallery demonstrates automatic activation and a descriptive panel, including a
+disabled tab. It does not certify assistive-technology navigation or expose complete
+native tab-to-panel relationships yet. CPU tests cover selection/keyboard rejection;
+the gallery test covers panel changes and translated selected/disabled roles.
+
+Run the expanded gallery with:
+
+```text
+cargo run -p view-controls --features gallery --example gallery --locked -- --headless
+cargo run -p view-controls --features gallery --example gallery --locked -- --show dx12
+```
+
+The interactive gallery uses the framework GPU adapter, not the local Review Desk
+software painter. Its memory/performance envelope is separate from that demo.

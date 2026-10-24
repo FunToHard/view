@@ -14,6 +14,7 @@ members = [
     "crates/view-addons",
     "tools/view-tooling",
     "examples/application-proofs",
+    "examples/view-pad",
     "crates/platform-probe",
     "tools/dependency-probe",
 ]

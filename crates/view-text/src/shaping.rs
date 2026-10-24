@@ -22,6 +22,9 @@ struct Cell {
 /// does not invalidate an existing layout. No glyph atlas handle is exposed.
 #[derive(Clone)]
 pub struct ShapedText {
+    data: Arc<ShapedData>,
+}
+struct ShapedData {
     buffer: Buffer,
     raster_fonts: Arc<Mutex<FontSystem>>,
     text: TextSnapshot,
@@ -32,45 +35,61 @@ pub struct ShapedText {
     missing_glyphs: usize,
 }
 impl ShapedText {
+    /// True for clones of the same immutable shaped result, including cache hits.
+    /// Distinct shaping results never share this identity, even with equal text.
+    pub fn shares_layout(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.data, &other.data)
+    }
     /// Whether glyph font IDs refer to the same retained collection. Rendering
     /// adapters must not share a glyph atlas across unrelated font-ID namespaces.
     pub fn shares_font_collection(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.raster_fonts, &other.raster_fonts)
+        Arc::ptr_eq(&self.data.raster_fonts, &other.data.raster_fonts)
     }
     /// Adapter bridge to the exact shaping buffer and retained font collection.
     /// Font reload replaces the backend collection; existing layouts remain valid.
     pub fn with_raster_source<T>(&self, render: impl FnOnce(&Buffer, &mut FontSystem) -> T) -> T {
-        let mut fonts = self.raster_fonts.lock().unwrap_or_else(|e| e.into_inner());
-        render(&self.buffer, &mut fonts)
+        let mut fonts = self
+            .data
+            .raster_fonts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        render(&self.data.buffer, &mut fonts)
     }
     pub fn font_count(&self) -> usize {
-        self.fonts.len()
+        self.data.fonts.len()
     }
     /// Missing glyphs are observable; fallback is never claimed to cover all scripts.
     pub fn missing_glyphs(&self) -> usize {
-        self.missing_glyphs
+        self.data.missing_glyphs
     }
     fn stop(&self, caret: Caret) -> Result<&Stop, TextError> {
-        validate_caret(self.text.text(), caret.index)?;
-        self.stops
+        validate_caret(self.data.text.text(), caret.index)?;
+        self.data
+            .stops
             .iter()
             .find(|s| s.caret == caret)
-            .or_else(|| self.stops.iter().find(|s| s.caret.index == caret.index))
+            .or_else(|| {
+                self.data
+                    .stops
+                    .iter()
+                    .find(|s| s.caret.index == caret.index)
+            })
             .ok_or(TextError::InvalidIndex)
     }
 }
 impl TextLayout for ShapedText {
     fn text(&self) -> &TextSnapshot {
-        &self.text
+        &self.data.text
     }
     fn size(&self) -> LogicalSize {
-        self.size
+        self.data.size
     }
     fn hit_test(&self, point: LogicalPoint) -> Result<Caret, TextError> {
         if !point.is_valid() {
             return Err(TextError::InvalidMetrics);
         }
-        self.stops
+        self.data
+            .stops
             .iter()
             .min_by(|a, b| {
                 let distance = |s: &Stop| {
@@ -96,10 +115,11 @@ impl TextLayout for ShapedText {
         Ok(self.stop(caret)?.rect)
     }
     fn selection_bounds(&self, selection: Selection) -> Result<Vec<LogicalRect>, TextError> {
-        validate_caret(self.text.text(), selection.anchor)?;
-        validate_caret(self.text.text(), selection.focus)?;
+        validate_caret(self.data.text.text(), selection.anchor)?;
+        validate_caret(self.data.text.text(), selection.focus)?;
         let range = selection.range();
         Ok(self
+            .data
             .cells
             .iter()
             .filter(|c| c.range.start < range.end && c.range.end > range.start)
@@ -110,7 +130,7 @@ impl TextLayout for ShapedText {
 impl NavigableLayout for ShapedText {
     fn visual_neighbor(&self, caret: Caret, forward: bool) -> Result<Caret, TextError> {
         let current = self.stop(caret)?;
-        let mut ordered: Vec<_> = self.stops.iter().collect();
+        let mut ordered: Vec<_> = self.data.stops.iter().collect();
         ordered.sort_by(|a, b| {
             a.rect
                 .origin
@@ -251,8 +271,8 @@ impl TextBackend for CosmicBackend {
             .map(|(r, _)| r.start)
             .collect();
         starts.push(request.text.text().len());
-        let mut result = ShapedText {
-            buffer: buffer.clone(),
+        let mut result = ShapedData {
+            buffer,
             raster_fonts: self.fonts.clone(),
             text: request.text.clone(),
             size: LogicalSize::ZERO,
@@ -262,7 +282,7 @@ impl TextBackend for CosmicBackend {
             missing_glyphs: 0,
         };
         let mut font_ids = Vec::new();
-        for run in buffer.layout_runs() {
+        for run in result.buffer.layout_runs() {
             let offset = starts[run.line_i];
             result.size.width = result.size.width.max(run.line_w);
             result.size.height = result.size.height.max(run.line_top + run.line_height);
@@ -341,6 +361,9 @@ impl TextBackend for CosmicBackend {
         if result.stops.is_empty() {
             return Err(TextError::InvalidMetrics);
         }
+        let result = ShapedText {
+            data: Arc::new(result),
+        };
         if self.capacity > 0 {
             if self.cache.len() == self.capacity {
                 self.cache.pop_front();

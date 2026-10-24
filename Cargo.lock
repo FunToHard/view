@@ -2418,6 +2418,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "view-pad"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "view",
+ "view-controls",
+ "view-platform",
+ "view-text",
+ "view-wgpu",
+ "winit",
+]
+
+[[package]]
 name = "view-platform"
 version = "0.1.0"
 dependencies = [

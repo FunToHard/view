@@ -36,6 +36,23 @@ fn pass_graph_requires_declared_transitive_dependencies_and_single_writers() {
     assert!(validate_passes(&[a.clone(), a], &[ResourceId(0)]).is_err());
 }
 #[test]
+fn unchanged_resize_does_not_reconfigure_but_resume_still_does() {
+    let mut state = SurfaceState::new([100, 80]);
+    state.resize([100, 80]);
+    assert_eq!(state.apply(), Some([100, 80]));
+    for _ in 0..1000 {
+        state.resize([100, 80]);
+        assert_eq!(state.apply(), None);
+    }
+    state.resize([120, 90]);
+    state.resize([120, 90]);
+    assert_eq!(state.apply(), Some([120, 90]));
+    state.set_occluded(true);
+    state.set_occluded(false);
+    state.resize([120, 90]);
+    assert_eq!(state.apply(), Some([120, 90]));
+}
+#[test]
 fn resize_coalesces_zero_and_occlusion_suspend() {
     let mut state = SurfaceState::new([10, 10]);
     assert_eq!(state.apply(), Some([10, 10]));

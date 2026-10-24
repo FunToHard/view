@@ -18,6 +18,9 @@ impl SurfaceState {
         }
     }
     pub fn resize(&mut self, size: [u32; 2]) {
+        if self.pending.unwrap_or(self.size) == size {
+            return;
+        }
         self.pending = Some(size);
     }
     pub fn set_occluded(&mut self, value: bool) {

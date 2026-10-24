@@ -6,10 +6,11 @@ struct VertexOut {
 }
 @group(0) @binding(0) var image: texture_2d<f32>;
 @group(0) @binding(1) var image_sampler: sampler;
+@group(1) @binding(0) var<uniform> viewport: vec4<f32>;
 @vertex fn vs(@location(0) pos: vec2<f32>, @location(1) uv: vec2<f32>,
              @location(2) color: vec4<f32>, @location(3) straight: f32) -> VertexOut {
     var out: VertexOut;
-    out.position = vec4<f32>(pos, 0.0, 1.0);
+    out.position = vec4<f32>(pos / viewport.xy * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0), 0.0, 1.0);
     out.uv = uv;
     out.color = color;
     out.straight = straight;

@@ -101,6 +101,21 @@ fn test_reveal_target_contract() {
 }
 
 #[test]
+fn virtual_scroll_saturates_extreme_indices_and_counts() {
+    let scroll = VirtualScroll::new(usize::MAX, 1.0);
+
+    assert_eq!(
+        scroll.visible_range(f32::MAX, f32::MAX, usize::MAX),
+        0..usize::MAX
+    );
+    assert_eq!(scroll.visible_range(0.0, f32::MAX, 0), 0..usize::MAX);
+    assert_eq!(
+        scroll.visible_range(f32::MAX, 1.0, 0),
+        usize::MAX..usize::MAX
+    );
+}
+
+#[test]
 fn test_virtual_content_realization() {
     // 10,000 items, each 30px high
     let virtual_scroll = VirtualScroll::new(10_000, 30.0);

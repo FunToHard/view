@@ -67,6 +67,38 @@ fn press_cancel_repeat_and_disabled_do_not_activate() {
     assert!(!button.pointer(pointer(PointerPhase::Up, 0.0, 0.0), true));
     assert_eq!(button.activate(), Err(ControlError::Disabled));
 }
+
+#[test]
+fn multiline_text_scroll_uses_prepared_layout_and_clamps_to_content() {
+    let text = (0..40)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut area = TextArea::new("Document", &text).unwrap();
+    let bounds = rect(0.0, 0.0, 240.0, 100.0);
+    area.0
+        .prepare(&mut fonts(), &Style::default(), bounds, ScaleFactor::ONE, 0)
+        .unwrap();
+    assert!(
+        area.0
+            .scroll_by(LogicalPoint::new(0.0, 48.0), bounds.size)
+            .unwrap()
+    );
+    assert_eq!(area.0.editor().scroll_offset().y, 48.0);
+    assert!(
+        area.0
+            .scroll_by(LogicalPoint::new(0.0, 100_000.0), bounds.size)
+            .unwrap()
+    );
+    assert!(
+        !area
+            .0
+            .scroll_by(LogicalPoint::new(0.0, 100_000.0), bounds.size)
+            .unwrap()
+    );
+    assert!(area.0.editor().scroll_offset().y > 0.0);
+}
+
 #[test]
 fn mixed_checkbox_and_radio_exclusivity() {
     let mut check = Checkbox::new("Use defaults", CheckState::Mixed, true).unwrap();
@@ -524,4 +556,83 @@ fn runtime_capture_continues_drag_and_cancels_when_hidden() {
     assert!(runtime.capture_pointer(window, id).is_err());
     runtime.unmount(id).unwrap();
     assert!(runtime.capture_pointer(window, id).is_err());
+}
+
+#[test]
+fn tabs_wrap_skip_disabled_and_leave_host_keys_alone() {
+    let mut tabs = TabList::new(
+        vec![
+            TabOption {
+                key: "one".into(),
+                label: "One".into(),
+                disabled: false,
+            },
+            TabOption {
+                key: "disabled".into(),
+                label: "Disabled".into(),
+                disabled: true,
+            },
+            TabOption {
+                key: "three".into(),
+                label: "Three".into(),
+                disabled: false,
+            },
+        ],
+        None,
+    )
+    .unwrap();
+    assert!(
+        !tabs
+            .key(&key(NamedKey::ArrowRight, KeyPhase::Down))
+            .unwrap()
+    );
+    tabs.set_focused(true);
+    assert!(
+        tabs.key(&key(NamedKey::ArrowRight, KeyPhase::Down))
+            .unwrap()
+    );
+    assert_eq!(tabs.selected(), "three");
+    tabs.key(&key(NamedKey::ArrowRight, KeyPhase::Repeat))
+        .unwrap();
+    assert_eq!(tabs.selected(), "one");
+    tabs.key(&key(NamedKey::End, KeyPhase::Down)).unwrap();
+    assert_eq!(tabs.selected(), "three");
+    assert_eq!(tabs.select("disabled"), Err(ControlError::Disabled));
+    assert_eq!(tabs.selected(), "three");
+    assert_eq!(tabs.select("missing"), Err(ControlError::Stale));
+    for named in [NamedKey::Tab, NamedKey::ArrowDown, NamedKey::ArrowUp] {
+        assert!(!tabs.key(&key(named, KeyPhase::Down)).unwrap());
+    }
+    let mut modified = key(NamedKey::Home, KeyPhase::Down);
+    modified.modifiers.ctrl = true;
+    assert!(!tabs.key(&modified).unwrap());
+    assert!(!tabs.key(&key(NamedKey::Home, KeyPhase::Up)).unwrap());
+    tabs.key(&key(NamedKey::Home, KeyPhase::Down)).unwrap();
+    assert_eq!(tabs.selected(), "one");
+}
+
+#[test]
+fn tabs_reject_invalid_sets_and_expose_selection_without_checkbox_state() {
+    assert!(TabList::new(vec![], None).is_err());
+    let option = TabOption {
+        key: "same".into(),
+        label: "Same".into(),
+        disabled: false,
+    };
+    assert!(TabList::new(vec![option.clone(), option.clone()], None).is_err());
+    let mut disabled = option.clone();
+    disabled.disabled = true;
+    assert!(TabList::new(vec![disabled], None).is_err());
+    let mut runtime: Runtime<(), ()> = Runtime::new(8).unwrap();
+    let (_, id) = runtime
+        .open_window(Description::new("tabs", (), |_, _, _| Dirty::NONE))
+        .unwrap();
+    let mut tabs = TabList::new(vec![option], None).unwrap();
+    tabs.set_focused(true);
+    let state = tabs.semantics(0, id, rect(0., 0., 100., 30.)).unwrap();
+    assert_eq!(state.node.role, Role::Custom("tab".into()));
+    assert_eq!(state.node.checked, None);
+    assert_eq!(state.selected, Some(true));
+    assert!(state.node.focused);
+    assert!(tabs.semantics(1, id, rect(0., 0., 100., 30.)).is_err());
 }

@@ -1,12 +1,24 @@
 # Ordered implementation checklist
 
-Baseline: design revision 0.4. Updated: 2026-10-19. This is the progress checklist
+Baseline: design revision 0.4. Updated: 2026-10-23. This is the progress checklist
 for the complete selected developer preview, followed by the deferred roadmap.
 Creating this checklist does not execute its tasks.
 
+## Active control work (2026-10-23)
+
+- [x] **UI-01** Extend the existing gallery with a horizontal tab list, disabled/selected/focused states, panel switching, shared keyboard selection and semantic actions. Evidence: [implementation and local checks](evidence/controls-first.md).
+- [ ] **UI-02** Expand existing button/check/text/scroll state and conformance coverage, including native IME/accessibility and measured interaction budgets where applicable.
+- [ ] **UI-03** Add a dropdown/select control using the existing popup/focus ownership model, with keyboard and semantic parity.
+- [ ] **UI-04** Expand menu/dialog and list/tree presentations, then introduce a bounded table control with its own acceptance profile.
+
+These are additions to the canonical checklist, not replacement completion claims
+for M4, M8B-06 or F-01. Basic tabs do not imply docking, tear-off or persistence (F-02).
+
 ## How to use this checklist
 
-Work through phases 0–12 in order. Within each phase, work from top to bottom;
+Priority amendment (2026-10-23): the owner authorized controls-first development. Remaining M0–M7 coverage gaps and M8 work are deferred from the active implementation queue, not completed or waived as release gates. F-01 is partially activated through the control work below; other future items remain deferred. Resume phase order when this priority changes.
+
+Outside that amendment, work through phases 0–12 in order. Within each phase, work from top to bottom;
 smaller fixes and tests belong with the behavior they validate. Phase prerequisites
 identify the minimum technical dependencies if work is split later. No parallel
 team or fixed delivery dates are assumed.
@@ -322,6 +334,9 @@ Acceptance: T-13/T-15/T-21 plus regression suites from every preceding phase.
 - [ ] **M8A-07** Exercise surface/device/process failure, minimize/restore, sleep/resume, display changes and resource exhaustion; verify bounded cleanup or actionable failure.
 - [ ] **M8A-08** Define named workloads, hardware/drivers, font/assets, resolutions, scene sizes and quality settings; separate correctness and performance environments.
 - [ ] **M8A-09** Measure cold/warm p50/p95/p99 UI/scene/composition time, input latency, idle wakeups, memory/allocations, upload volume and webview hot/cold cost.
+  Partial local tooling: [staged hardware-DX12 memory probe](../guides/gpu-memory.md)
+  records release working set/private commitment and resize/edit retention.
+  This does not close timing, allocation, full-application or platform coverage.
 - [ ] **M8A-10** Measure virtualized large hierarchies, sustained resizing, multiple windows/viewports, tiled canvas and background-import pressure; enforce bounded queues/resource growth.
 - [ ] **M8A-11** Establish repeatable numeric regression budgets from evidence and optimize actual bottlenecks; do not require speculative render threads or partial swapchain redraw.
 - [ ] **M8A-12** Run lifecycle stress/property/fuzz scenarios at native/protocol/editor boundaries; review unsafe code and dependency vulnerabilities/maintenance at release qualification.

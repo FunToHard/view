@@ -36,6 +36,31 @@ fn grapheme_deletion_and_word_boundaries_have_independent_expectations() {
 }
 
 #[test]
+fn insertion_snaps_after_combining_and_zwj_cluster_merges() {
+    let mut combining = field("ae");
+    combining
+        .move_caret(Movement::DocumentStart, false, 0)
+        .unwrap();
+    combining.move_caret(Movement::Forward, false, 0).unwrap();
+    combining.insert("\u{301}", EditKind::Typing, 1).unwrap();
+    assert_eq!(value(&combining), "a\u{301}e");
+    assert_eq!(
+        combining.snapshot().selection,
+        Selection::caret(TextIndex(3))
+    );
+
+    let mut zwj = field("👩💻");
+    zwj.move_caret(Movement::DocumentStart, false, 0).unwrap();
+    zwj.move_caret(Movement::Forward, false, 0).unwrap();
+    zwj.insert("\u{200d}", EditKind::Typing, 1).unwrap();
+    assert_eq!(value(&zwj), "👩‍💻");
+    assert_eq!(
+        zwj.snapshot().selection,
+        Selection::caret(TextIndex("👩‍💻".len()))
+    );
+}
+
+#[test]
 fn replacement_direction_shift_selection_and_word_selection() {
     let mut e = field("abcd word");
     select(&mut e, 3, 1);
@@ -353,4 +378,38 @@ fn placeholder_hidden_preedit_cursor_and_history_budget() {
         Err(TextError::Validation)
     );
     assert_eq!(value(&reject), "");
+}
+
+#[test]
+fn undo_history_respects_byte_budget() {
+    let mut oversized = PlainEditor::new(
+        "large",
+        EditorConfig {
+            history_bytes_limit: 4,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    oversized
+        .move_caret(Movement::DocumentEnd, false, 0)
+        .unwrap();
+    oversized.insert("!", EditKind::Command, 0).unwrap();
+    assert_eq!(value(&oversized), "large!");
+    assert!(!oversized.undo().unwrap());
+
+    let mut bounded = PlainEditor::new(
+        "a",
+        EditorConfig {
+            history_bytes_limit: 3,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    bounded.move_caret(Movement::DocumentEnd, false, 0).unwrap();
+    bounded.insert("b", EditKind::Command, 0).unwrap();
+    bounded.insert("c", EditKind::Command, 0).unwrap();
+    bounded.insert("d", EditKind::Command, 0).unwrap();
+    assert!(bounded.undo().unwrap());
+    assert_eq!(value(&bounded), "abc");
+    assert!(!bounded.undo().unwrap());
 }

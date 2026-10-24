@@ -4,12 +4,14 @@
 mod behavior;
 mod collections;
 mod popup;
+mod tabs;
 mod text;
 mod theme;
 mod widgets;
 pub use behavior::*;
 pub use collections::*;
 pub use popup::*;
+pub use tabs::*;
 pub use text::*;
 pub use theme::*;
 pub use view_text;

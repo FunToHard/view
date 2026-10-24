@@ -1,0 +1,21 @@
+[package]
+name = "view-pad"
+description = "A small native multiline text editor built with view."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view = { workspace = true, features = ["controls-render"] }
+view-controls = { workspace = true, features = ["accessibility"] }
+view-platform = { workspace = true, features = ["accessibility", "text", "desktop-services"] }
+view-text = { workspace = true, features = ["shaping"] }
+view-wgpu.workspace = true
+accesskit.workspace = true
+winit.workspace = true
+
+[lints]
+workspace = true

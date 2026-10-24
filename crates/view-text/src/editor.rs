@@ -25,6 +25,8 @@ pub struct EditorConfig {
     /// Limit in extended grapheme clusters; edits reject atomically, never truncate.
     pub max_graphemes: Option<usize>,
     pub history_limit: usize,
+    /// Maximum UTF-8 bytes retained across undo and redo snapshots.
+    pub history_bytes_limit: usize,
     pub placeholder: String,
 }
 impl Default for EditorConfig {
@@ -35,6 +37,7 @@ impl Default for EditorConfig {
             tab: TabPolicy::Traverse,
             max_graphemes: None,
             history_limit: 100,
+            history_bytes_limit: 16 * 1024 * 1024,
             placeholder: String::new(),
         }
     }
@@ -289,17 +292,22 @@ impl PlainEditor {
         if range.start > range.end {
             return Err(TextError::InvalidRange);
         }
-        validate_caret(&self.state.text, TextIndex(range.start))?;
-        validate_caret(&self.state.text, TextIndex(range.end))?;
+        let old_boundaries = grapheme_boundaries(&self.state.text);
+        if old_boundaries.binary_search(&range.start).is_err()
+            || old_boundaries.binary_search(&range.end).is_err()
+        {
+            return Err(TextError::InvalidIndex);
+        }
         let input = self.normalize(input)?;
         let mut value = self.state.text.clone();
         value.replace_range(range.clone(), &input);
         self.validate_value(&value)?;
         // Inserting combining/ZWJ text can merge with either neighboring cluster.
         let desired = range.start + input.len();
-        let caret = grapheme_boundaries(&value)
-            .into_iter()
-            .find(|&i| i >= desired)
+        let new_boundaries = grapheme_boundaries(&value);
+        let caret = new_boundaries
+            .get(new_boundaries.partition_point(|&boundary| boundary < desired))
+            .copied()
             .unwrap_or(value.len());
         if value == self.state.text {
             self.state.selection = Selection::caret(TextIndex(caret));
@@ -319,7 +327,7 @@ impl PlainEditor {
                     && range.start == self.state.selection.focus.0
             });
         if !grouped {
-            self.push_undo(self.state.clone());
+            self.push_undo_snapshot();
         }
         self.redo.clear();
         self.state = State {
@@ -338,13 +346,55 @@ impl PlainEditor {
         Ok(())
     }
     fn push_undo(&mut self, state: State) {
-        if self.config.history_limit == 0 {
+        if !self.make_history_room(state.text.len()) {
             return;
         }
-        if self.undo.len() == self.config.history_limit {
+        while self.undo.len() >= self.config.history_limit {
             self.undo.remove(0);
         }
         self.undo.push(state);
+    }
+    fn push_undo_snapshot(&mut self) {
+        if !self.make_history_room(self.state.text.len()) {
+            return;
+        }
+        while self.undo.len() >= self.config.history_limit {
+            self.undo.remove(0);
+        }
+        self.undo.push(self.state.clone());
+    }
+    fn push_redo(&mut self, state: State) {
+        if !self.make_history_room(state.text.len()) {
+            return;
+        }
+        while self.redo.len() >= self.config.history_limit {
+            self.redo.remove(0);
+        }
+        self.redo.push(state);
+    }
+    fn make_history_room(&mut self, incoming_bytes: usize) -> bool {
+        let limit = self.config.history_bytes_limit;
+        if self.config.history_limit == 0 || incoming_bytes > limit {
+            return false;
+        }
+        while self
+            .undo
+            .iter()
+            .chain(&self.redo)
+            .fold(incoming_bytes, |total, state| {
+                total.saturating_add(state.text.len())
+            })
+            > limit
+        {
+            if !self.undo.is_empty() {
+                self.undo.remove(0);
+            } else if !self.redo.is_empty() {
+                self.redo.remove(0);
+            } else {
+                return false;
+            }
+        }
+        true
     }
     pub fn insert(&mut self, input: &str, kind: EditKind, now_ms: u64) -> Result<(), TextError> {
         let range = self
@@ -595,7 +645,7 @@ impl PlainEditor {
         if redo {
             self.push_undo(old);
         } else {
-            self.redo.push(old);
+            self.push_redo(old);
         }
         self.revision = next;
         self.composition = None;

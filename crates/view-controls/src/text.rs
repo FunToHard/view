@@ -341,6 +341,20 @@ impl TextField {
         let caret = layout.hit_test(point + self.editor.scroll_offset())?;
         self.editor.select_word(caret.index)
     }
+    /// Scroll the prepared text layout by a logical delta, clamped to its content.
+    /// Returns whether the effective offset changed. Prepare the field after text
+    /// edits and before applying pointer-wheel input so geometry matches the value.
+    pub fn scroll_by(
+        &mut self,
+        delta: LogicalPoint,
+        viewport: LogicalSize,
+    ) -> Result<bool, TextError> {
+        let layout = self.layout.as_ref().ok_or(TextError::StaleRevision)?;
+        let before = self.editor.scroll_offset();
+        self.editor
+            .set_scroll_offset(layout.as_ref(), before + delta, viewport)?;
+        Ok(before != self.editor.scroll_offset())
+    }
     /// Shapes committed navigation and transient display independently; preparation
     /// may reveal the caret but never applies an editing command.
     pub fn prepare(
@@ -394,9 +408,16 @@ impl TextField {
                 content.size,
             )?;
         }
-        self.layout = Some(committed_layout);
+        self.layout = Some(committed_layout.clone());
         let display = self.editor.display_snapshot()?;
-        let mut layout = Arc::new(backend.shape(&request(display.text.clone()))?);
+        let mut layout = if committed.composition.is_some() {
+            Arc::new(backend.shape(&request(display.text.clone()))?)
+        } else {
+            // Without IME preedit the display text equals the committed text.
+            // Reuse the layout just prepared above instead of shaping (or cloning
+            // a cached copy of) the whole document a second time on every paint.
+            committed_layout.clone()
+        };
         let raw_caret = Caret {
             index: display.selection.focus,
             affinity: Affinity::Downstream,
@@ -419,13 +440,21 @@ impl TextField {
             .origin
             .y
             .clamp(content.top(), content.bottom() - candidate.size.height);
-        let boundaries = grapheme_boundaries(display.text.text());
+        let boundaries = committed
+            .composition
+            .as_ref()
+            .map(|_| grapheme_boundaries(display.text.text()));
         let snap = |i: usize| {
+            let Some(boundaries) = &boundaries else {
+                // PlainEditor maintains caret and selection at grapheme edges.
+                return TextIndex(i);
+            };
+            let index = boundaries.partition_point(|boundary| *boundary < i);
             TextIndex(
-                *boundaries
-                    .iter()
-                    .find(|b| **b >= i)
-                    .unwrap_or(&display.text.text().len()),
+                boundaries
+                    .get(index)
+                    .copied()
+                    .unwrap_or(display.text.text().len()),
             )
         };
         let preedit = committed.composition.as_ref().map(|c| Selection {

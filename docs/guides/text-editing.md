@@ -17,6 +17,12 @@ once and shape immutable snapshots during layout. Keyboard/menu/semantic command
 must route through the same engine. Control lifecycle/semantics wiring is a later
 milestone; dropping the session releases field history and composition.
 
+`ShapedText` clones and shaping-cache hits share immutable layout storage through
+an `Arc`: the cosmic-text buffer, caret/selection geometry and font references
+are not deep-copied. Eviction and font reload leave retained layouts valid;
+`shares_layout` compares the shared allocation's identity. New shaping results
+remain distinct. The raster bridge exposes the buffer read-only.
+
 ## Value and edit policies
 
 - Indices are UTF-8 bytes. Committed selection/caret endpoints are extended
@@ -40,8 +46,11 @@ milestone; dropping the session releases field history and composition.
 - Typing within 1,000 ms groups only at a continuing empty selection. Navigation,
   focus, paste and composition break groups. Paste and IME commit each form one
   transaction. Undo/redo restore text/selection while advancing value revision.
-  History is bounded. Application undo should own the surrounding domain
-  transaction rather than replaying a second field undo.
+  History is bounded by both `history_limit` and `history_bytes_limit` (16 MiB
+  by default, counted across retained UTF-8 snapshot text). Oldest snapshots are
+  evicted to meet the byte budget; a snapshot larger than the budget is omitted.
+  Application undo should own the surrounding domain transaction rather than
+  replaying a second field undo.
 - Read-only permits selection/copy but rejects edits/history. Disabled rejects
   selection/clipboard/edits and removes caret focus. Placeholder is visible only
   for an empty value without nonempty preedit. The caller supplies milliseconds;
