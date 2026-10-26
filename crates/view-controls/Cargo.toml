@@ -13,13 +13,18 @@ view-core.workspace = true
 view-text = { workspace = true, features = ["shaping"] }
 view-wgpu = { workspace = true, optional = true }
 accesskit = { workspace = true, optional = true }
-view-platform = { workspace = true, optional = true, features = ["text", "accessibility", "desktop-services"] }
+view-platform = { workspace = true, optional = true }
 winit = { workspace = true, optional = true }
 
 [features]
 render = ["dep:view-wgpu"]
 accessibility = ["dep:accesskit"]
-gallery = ["render", "accessibility", "dep:view-platform", "dep:winit"]
+gallery = ["render", "accessibility", "dep:view-platform", "dep:winit", "view-platform/text", "view-platform/accessibility", "view-platform/desktop-services"]
+docking = ["dep:view-platform", "dep:winit"]
+
+[[example]]
+name = "docking"
+required-features = ["docking"]
 
 [[example]]
 name = "gallery"

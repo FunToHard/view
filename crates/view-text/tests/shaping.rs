@@ -3,9 +3,9 @@ use view_core::{LogicalPoint, LogicalSize, Revision, ScaleFactor};
 use view_text::*;
 fn fonts() -> Vec<Vec<u8>> {
     vec![
-        include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec(),
-        include_bytes!("../../../tests/fixtures/fonts/NotoSansHebrew.ttf").to_vec(),
-        include_bytes!("../../../tests/fixtures/fonts/NotoSansArabic.ttf").to_vec(),
+        include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec(),
+        include_bytes!("../fixtures/fonts/NotoSansHebrew.ttf").to_vec(),
+        include_bytes!("../fixtures/fonts/NotoSansArabic.ttf").to_vec(),
     ]
 }
 fn request(text: &str) -> LayoutRequest {

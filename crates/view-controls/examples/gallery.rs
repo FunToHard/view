@@ -77,6 +77,8 @@ enum Widget {
     Tabs(TabList),
     TabPanel,
     Tree(Tree),
+    Select(Select, Pressable),
+    Table(Table),
 }
 impl Widget {
     fn field(&mut self) -> Option<&mut TextField> {
@@ -92,6 +94,10 @@ impl Widget {
             Self::Check(c) => c.button.behavior.set_focused(focus),
             Self::Radio(group) => group.set_focused(focus),
             Self::Tabs(group) => group.set_focused(focus),
+            Self::Select(select, press) => {
+                select.set_focused(focus);
+                press.set_focused(focus);
+            }
             Self::Slider(s) => {
                 s.focused = focus;
                 if !focus {
@@ -105,7 +111,7 @@ impl Widget {
             }
         }
     }
-    fn semantics(&self, id: NodeId, bounds: LogicalRect) -> ControlSemantics {
+    fn semantics(&self, id: NodeId, bounds: LogicalRect, popups: &PopupStack) -> ControlSemantics {
         match self {
             Self::Label(s) => s.semantics(id, bounds),
             Self::Button(s) => s.semantics(id, bounds),
@@ -113,6 +119,12 @@ impl Widget {
             Self::Slider(s) => s.semantics(id, bounds),
             Self::Number(s) => s.field.semantics(id, bounds),
             Self::Field(s, _) => s.semantics(id, bounds),
+            Self::Select(select, _) => select.semantics(id, bounds, popups),
+            Self::Table(table) => table.semantics(
+                id,
+                bounds,
+                "Asset table: arrows navigate, Shift selects rows",
+            ),
             Self::List(s) => {
                 let mut node = SemanticNode::new(id, Role::Custom("list".into()));
                 node.name = Some("10,000 keyed rows".into());
@@ -143,7 +155,7 @@ impl Widget {
                 ControlSemantics::new(node)
             }
             Self::Tree(s) => {
-                let mut node = SemanticNode::new(id, Role::Container);
+                let mut node = SemanticNode::new(id, Role::Custom("tree".into()));
                 node.name = Some("Project tree: arrows expand".into());
                 node.value = s.list.selection.focused().map(str::to_owned);
                 node.bounds = bounds;
@@ -163,7 +175,11 @@ struct Gallery {
     revision: Revision,
     status: String,
     candidate: Option<LogicalRect>,
+    native_active: bool,
     rows: std::collections::HashMap<NodeId, (NodeId, String)>,
+    popups: PopupStack,
+    select_popup: Option<(NodeId, NodeId)>,
+    cells: std::collections::HashMap<NodeId, (NodeId, String, usize)>,
 }
 impl Gallery {
     fn new() -> Result<Self> {
@@ -171,7 +187,7 @@ impl Gallery {
         let (window, root) = runtime.open_window(
             Description::new("gallery", (), |_, _, _| Dirty::NONE)
                 .role(Role::Window)
-                .layout(rect(0.0, 0.0, 900.0, 740.0)),
+                .layout(rect(0.0, 0.0, 900.0, 1000.0)),
         )?;
         let mut this = Self {
             runtime,
@@ -179,14 +195,18 @@ impl Gallery {
             root,
             ids: vec![],
             fonts: CosmicBackend::from_fonts(
-                [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+                [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
                 128,
             )?,
             bridge: SemanticBridge::default(),
             revision: Revision::INITIAL,
             status: "Tab moves focus; arrows navigate; right-click text for native commands".into(),
             candidate: None,
+            native_active: true,
             rows: Default::default(),
+            popups: PopupStack::default(),
+            select_popup: None,
+            cells: Default::default(),
         };
         this.add(
             "heading",
@@ -385,6 +405,77 @@ impl Gallery {
             false,
         )?;
         this.add("footer",Widget::Label(Label::new("Preliminary profiles: CPU/GPU checks are separate from physical native certification.")),rect(24.0,680.0,850.0,36.0),false)?;
+        let select = this.add(
+            "select",
+            Widget::Select(
+                Select::new(
+                    "Render quality",
+                    [
+                        ("draft", "Draft", false),
+                        ("balanced", "Balanced", false),
+                        ("unavailable", "Unavailable", true),
+                        ("high", "High quality", false),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, disabled)| SelectOption {
+                        key: key.into(),
+                        label: label.into(),
+                        disabled,
+                    })
+                    .collect(),
+                    Some("balanced".into()),
+                )?,
+                Pressable::default(),
+            ),
+            rect(24.0, 730.0, 270.0, 38.0),
+            true,
+        )?;
+        let content = this.runtime.reconcile(
+            select,
+            vec![
+                Description::new("options", (), |_, _, _| Dirty::NONE)
+                    .structure(Structure::Declarative),
+            ],
+        )?[0];
+        this.select_popup = Some((select, content));
+        this.add(
+            "table",
+            Widget::Table(Table::new(
+                [
+                    ("name", "Asset", 300.0),
+                    ("kind", "Kind", 160.0),
+                    ("state", "State", 160.0),
+                    ("size", "Bytes", 240.0),
+                ]
+                .into_iter()
+                .map(|(key, label, width)| TableColumn {
+                    key: key.into(),
+                    label: label.into(),
+                    width,
+                })
+                .collect(),
+                (0..1000)
+                    .map(|i| TableRow {
+                        key: format!("asset-{i}"),
+                        cells: vec![
+                            format!("Asset {i:04}"),
+                            "Mesh".into(),
+                            "Ready".into(),
+                            (i * 4096).to_string(),
+                        ],
+                    })
+                    .collect(),
+                28.0,
+                LogicalSize::new(846.0, 174.0),
+                TableLimits {
+                    max_rows: 1000,
+                    max_columns: 8,
+                    max_realized_cells: 64,
+                },
+            )?),
+            rect(24.0, 792.0, 846.0, 174.0),
+            true,
+        )?;
         this.runtime.flush(&mut ())?;
         Ok(this)
     }
@@ -406,7 +497,27 @@ impl Gallery {
         Ok(id)
     }
     fn focus(&mut self, id: Option<NodeId>, now: u64) -> Result<()> {
+        if let Some((owner, _)) = self.select_popup
+            && id != Some(owner)
+        {
+            let popups = &mut self.popups;
+            self.runtime
+                .update(owner, Dirty::SEMANTICS, |widget: &mut Widget| {
+                    if let Widget::Select(select, _) = widget {
+                        select.close(popups, |_| false);
+                    }
+                })?;
+        }
         self.runtime.set_focus(self.window, id)?;
+        self.sync_native_focus(now)
+    }
+
+    fn sync_native_focus(&mut self, now: u64) -> Result<()> {
+        let id = if self.native_active {
+            self.runtime.focused(self.window)?
+        } else {
+            None
+        };
         for owner in &self.ids {
             self.runtime
                 .update(*owner, Dirty::PAINT, |widget: &mut Widget| {
@@ -414,6 +525,74 @@ impl Gallery {
                 })?;
         }
         Ok(())
+    }
+
+    fn set_native_active(&mut self, active: bool, now: u64) -> Result<()> {
+        self.native_active = active;
+        if !active {
+            self.runtime.cancel_pointer(self.window)?;
+            self.candidate = None;
+            if let Some((owner, _)) = self.select_popup {
+                let popups = &mut self.popups;
+                self.runtime
+                    .update(owner, Dirty::SEMANTICS, |widget: &mut Widget| {
+                        if let Widget::Select(select, _) = widget {
+                            select.close(popups, |_| false);
+                        }
+                    })?;
+            }
+        }
+        self.sync_native_focus(now)
+    }
+
+    fn native_text(&mut self, text: &str, now: u64) -> Result<()> {
+        if self.native_active
+            && let Some(id) = self.runtime.focused(self.window)?
+        {
+            self.runtime
+                .update(id, Dirty::PAINT, |widget: &mut Widget| {
+                    if let Some(field) = widget.field()
+                        && field.focused()
+                        && !field.editor().read_only()
+                    {
+                        field.insert_text(text, now)?;
+                    }
+                    Ok::<_, TextError>(())
+                })??;
+        }
+        Ok(())
+    }
+
+    fn native_ime(&mut self, event: &view_platform::ImeEvent, now: u64) -> Result<()> {
+        if self.native_active
+            && let Some(id) = self.runtime.focused(self.window)?
+        {
+            self.runtime
+                .update(id, Dirty::PAINT, |widget: &mut Widget| {
+                    if let Some(field) = widget.field()
+                        && field.focused()
+                    {
+                        view_platform::text::dispatch_ime(field.editor_mut(), event, now)?;
+                    }
+                    Ok::<_, TextError>(())
+                })??;
+        }
+        Ok(())
+    }
+
+    fn next_caret_blink(&self, now: u64) -> Result<Option<u64>> {
+        if !self.native_active {
+            return Ok(None);
+        }
+        let Some(id) = self.runtime.focused(self.window)? else {
+            return Ok(None);
+        };
+        let field = match self.runtime.state::<Widget>(id)? {
+            Widget::Field(field, _) => field,
+            Widget::Number(number) => &number.field,
+            _ => return Ok(None),
+        };
+        Ok(field.editor().next_caret_blink(now))
     }
     fn label(
         &mut self,
@@ -470,7 +649,11 @@ impl Gallery {
         self.runtime.flush(&mut ())?;
         self.revision = self.revision.checked_next()?;
         self.candidate = None;
-        let focused = self.runtime.focused(self.window)?;
+        let focused = if self.native_active {
+            self.runtime.focused(self.window)?
+        } else {
+            None
+        };
         let mut root = SemanticNode::new(self.root, Role::Window);
         root.name = Some("view control gallery".into());
         root.bounds = rect(
@@ -487,7 +670,10 @@ impl Gallery {
         self.rows.clear();
         for id in self.ids.clone() {
             let bounds = self.runtime.global_rect(id)?;
-            let mut state = self.runtime.state::<Widget>(id)?.semantics(id, bounds);
+            let mut state = self
+                .runtime
+                .state::<Widget>(id)?
+                .semantics(id, bounds, &self.popups);
             if matches!(self.runtime.state::<Widget>(id)?, Widget::TabPanel) {
                 state.node.name = Some(panel_text.into());
             }
@@ -615,18 +801,34 @@ impl Gallery {
                         }
                         Widget::Tree(tree) => {
                             local.extend(frame(bounds, &style));
-                            for row in tree.list.realized()? {
-                                let mut r = tree.list.row_rect(row);
-                                r.origin = r.origin + bounds.origin;
-                                let key = &tree.list.selection.keys()[row];
-                                if tree.list.selection.selected().contains(key) {
-                                    local.push(quad(r, style.selection));
-                                }
-                                labels.push((
-                                    format!("{} {key}", if tree.expanded(key) { "-" } else { "+" }),
-                                    r,
-                                    style.clone(),
-                                ));
+                            for row in tree.presentation(bounds, focused == Some(id))? {
+                                local.extend(row.paint(fonts, &style, scale)?);
+                            }
+                        }
+                        Widget::Select(select, press) => {
+                            let style = style.interaction(press.state());
+                            local.extend(frame(bounds, &style));
+                            let value = select
+                                .selected()
+                                .and_then(|key| {
+                                    select.options().iter().find(|option| option.key == key)
+                                })
+                                .map_or("Choose", |option| option.label.as_str());
+                            labels.push((
+                                format!("{value}  ▾"),
+                                rect(
+                                    bounds.left() + 8.0,
+                                    bounds.top() + 6.0,
+                                    bounds.size.width - 16.0,
+                                    28.0,
+                                ),
+                                style,
+                            ));
+                        }
+                        Widget::Table(table) => {
+                            local.extend(frame(bounds, &style));
+                            for cell in table.presentation(bounds, focused == Some(id))? {
+                                local.extend(cell.paint(fonts, &style, scale)?);
                             }
                         }
                         Widget::Tabs(group) => {
@@ -826,6 +1028,8 @@ impl Gallery {
                 }
             }
         }
+        self.append_table_semantics(&mut entries, focused)?;
+        self.append_select_popup(&mut entries, &mut items, scale)?;
         items.push(self.label(
             &self.status.clone(),
             rect(24.0, 620.0, 850.0, 44.0),
@@ -844,7 +1048,211 @@ impl Gallery {
             tree,
         ))
     }
+    fn select_popup_definition(&self, owner: NodeId, content: NodeId) -> Result<Popup> {
+        let bounds = PopupStack::placement(
+            self.runtime.global_rect(owner)?,
+            LogicalSize::new(270.0, 120.0),
+            self.runtime.global_rect(self.root)?,
+        )?;
+        Ok(Popup {
+            owner,
+            content,
+            return_focus: Some(owner),
+            bounds,
+            modal: false,
+        })
+    }
+    fn append_select_popup(
+        &mut self,
+        entries: &mut Vec<Entry>,
+        items: &mut Vec<Paint>,
+        scale: ScaleFactor,
+    ) -> Result<()> {
+        let Some((owner, content)) = self.select_popup else {
+            return Ok(());
+        };
+        if !self.popups.contains(content) {
+            return Ok(());
+        }
+        let popup = *self.popups.top().ok_or("missing popup")?;
+        let Widget::Select(select, _) = self.runtime.state::<Widget>(owner)? else {
+            return Err("missing select".into());
+        };
+        let visible = select.visible_options(popup.bounds.size.height, 30.0)?;
+        let keys: Vec<_> = visible
+            .clone()
+            .map(|index| select.options()[index].key.clone())
+            .collect();
+        let rows = select.presentation(popup.bounds, 30.0, &self.popups)?;
+        let mut node = SemanticNode::new(content, Role::Custom("list".into()));
+        node.name = Some("Render quality options".into());
+        node.bounds = popup.bounds;
+        entries.push(Entry {
+            parent: Some(owner),
+            state: ControlSemantics::new(node),
+        });
+        entries
+            .iter_mut()
+            .find(|entry| entry.state.node.id == owner)
+            .unwrap()
+            .state
+            .node
+            .focused = false;
+        items.extend(frame(popup.bounds, &Style::default()));
+        for row in rows {
+            items.extend(row.paint(&mut self.fonts, &Style::default(), scale)?);
+        }
+        let ids = self.runtime.reconcile(
+            content,
+            keys.iter()
+                .map(|key| Description::new(key, (), |_, _, _| Dirty::NONE))
+                .collect(),
+        )?;
+        for (offset, id) in ids.into_iter().enumerate() {
+            let Widget::Select(select, _) = self.runtime.state::<Widget>(owner)? else {
+                unreachable!()
+            };
+            let index = visible.start + offset;
+            let bounds = rect(
+                popup.bounds.left(),
+                popup.bounds.top() + offset as f32 * 30.0,
+                popup.bounds.size.width,
+                30.0,
+            );
+            entries.push(Entry {
+                parent: Some(content),
+                state: select.option_semantics(index, id, bounds, &self.popups)?,
+            });
+            self.rows.insert(id, (owner, keys[offset].clone()));
+        }
+        Ok(())
+    }
+    fn append_table_semantics(
+        &mut self,
+        entries: &mut Vec<Entry>,
+        focused: Option<NodeId>,
+    ) -> Result<()> {
+        self.cells.clear();
+        for owner in self.ids.clone() {
+            let Widget::Table(table) = self.runtime.state::<Widget>(owner)? else {
+                continue;
+            };
+            let visible = table.realized_rows()?;
+            let columns = table.realized_columns();
+            let mut row_keys = vec!["header".to_string()];
+            row_keys.extend(
+                visible
+                    .clone()
+                    .map(|index| format!("row:{}", table.rows()[index].key)),
+            );
+            let ids = self.runtime.reconcile(
+                owner,
+                row_keys
+                    .iter()
+                    .map(|key| {
+                        Description::new(key, (), |_, _, _| Dirty::NONE)
+                            .structure(Structure::Declarative)
+                    })
+                    .collect(),
+            )?;
+            let whole = self.runtime.global_rect(owner)?;
+            for (offset, id) in ids.into_iter().enumerate() {
+                let row = if offset == 0 {
+                    None
+                } else {
+                    Some(visible.start + offset - 1)
+                };
+                let Widget::Table(table) = self.runtime.state::<Widget>(owner)? else {
+                    unreachable!()
+                };
+                let mut row_bounds = table.cell_rect(row, 0)?;
+                row_bounds.origin = whole.origin + LogicalPoint::new(0.0, row_bounds.origin.y);
+                row_bounds.size.width = whole.size.width;
+                let clip = if row.is_some() {
+                    rect(
+                        whole.left(),
+                        whole.top() + table.row_height(),
+                        whole.size.width,
+                        whole.size.height - table.row_height(),
+                    )
+                } else {
+                    whole
+                };
+                let mut node = SemanticNode::new(id, Role::Custom("row".into()));
+                node.bounds = row_bounds.intersection(clip).ok_or("invisible table row")?;
+                entries.push(Entry {
+                    parent: Some(owner),
+                    state: ControlSemantics::new(node),
+                });
+                let column_keys: Vec<_> = columns
+                    .clone()
+                    .map(|index| table.columns()[index].key.clone())
+                    .collect();
+                let cell_ids = self.runtime.reconcile(
+                    id,
+                    column_keys
+                        .iter()
+                        .map(|key| Description::new(key, (), |_, _, _| Dirty::NONE))
+                        .collect(),
+                )?;
+                for (column, cell_id) in columns.clone().zip(cell_ids) {
+                    let Widget::Table(table) = self.runtime.state::<Widget>(owner)? else {
+                        unreachable!()
+                    };
+                    let mut bounds = table.cell_rect(row, column)?;
+                    bounds.origin = bounds.origin + whole.origin;
+                    let state = table.cell_semantics(
+                        row,
+                        column,
+                        cell_id,
+                        bounds.intersection(clip).ok_or("invisible table cell")?,
+                        focused == Some(owner),
+                    )?;
+                    if state.node.focused {
+                        entries
+                            .iter_mut()
+                            .find(|entry| entry.state.node.id == owner)
+                            .unwrap()
+                            .state
+                            .node
+                            .focused = false;
+                    }
+                    entries.push(Entry {
+                        parent: Some(id),
+                        state,
+                    });
+                    if let Some(row) = row {
+                        self.cells
+                            .insert(cell_id, (owner, table.rows()[row].key.clone(), column));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     fn key(&mut self, event: KeyboardEvent, clipboard: &mut impl Clipboard) -> Result<()> {
+        if !self.native_active {
+            return Ok(());
+        }
+        if let Some((owner, content)) = self.select_popup
+            && self.runtime.focused(self.window)? == Some(owner)
+        {
+            let popup = self.select_popup_definition(owner, content)?;
+            let popups = &mut self.popups;
+            let response = self.runtime.update(
+                owner,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |widget: &mut Widget| -> Result<SelectResponse> {
+                    let Widget::Select(select, _) = widget else {
+                        return Err("select expected".into());
+                    };
+                    Ok(select.key(&event, popups, popup, |id| id == owner)?)
+                },
+            )??;
+            if response.handled {
+                return Ok(());
+            }
+        }
         if event.key == Key::Named(NamedKey::Tab) && event.phase == KeyPhase::Down {
             let target = self
                 .runtime
@@ -881,6 +1289,9 @@ impl Gallery {
                     }
                     Widget::Tree(tree) => {
                         tree.key(&event)?;
+                    }
+                    Widget::Table(table) => {
+                        table.key(&event)?;
                     }
                     Widget::Radio(group) => {
                         group.key(&event)?;
@@ -928,6 +1339,45 @@ impl Gallery {
         Ok(())
     }
     fn pointer(&mut self, event: PointerEvent) -> Result<Option<NodeId>> {
+        if !self.native_active && matches!(event.phase, PointerPhase::Down | PointerPhase::Up) {
+            return Ok(None);
+        }
+        if let Some(popup) = self.popups.top().copied()
+            && self
+                .select_popup
+                .is_some_and(|(_, content)| content == popup.content)
+        {
+            if popup.bounds.contains(event.position) {
+                if event.phase == PointerPhase::Up && event.button == Some(PointerButton::Primary) {
+                    let popups = &mut self.popups;
+                    self.runtime.update(
+                        popup.owner,
+                        Dirty::PAINT.union(Dirty::SEMANTICS),
+                        |widget: &mut Widget| -> Result<()> {
+                            if let Widget::Select(select, _) = widget {
+                                let range =
+                                    select.visible_options(popup.bounds.size.height, 30.0)?;
+                                let index = range.start
+                                    + ((event.position.y - popup.bounds.top()) / 30.0) as usize;
+                                if let Some(key) = select
+                                    .options()
+                                    .get(index)
+                                    .filter(|option| !option.disabled)
+                                    .map(|option| option.key.clone())
+                                {
+                                    select.activate(&key, popups, |id| id == popup.owner)?;
+                                }
+                            }
+                            Ok(())
+                        },
+                    )??;
+                }
+                return Ok(None);
+            }
+            if event.phase == PointerPhase::Down {
+                self.popups.outside(event.position, |id| id == popup.owner);
+            }
+        }
         let actions = self.runtime.route_pointer(self.window, event, &mut ())?;
         let mut context = None;
         for action in actions {
@@ -965,6 +1415,12 @@ impl Gallery {
             }
             let bounds = self.runtime.global_rect(id)?;
             let mut activated = false;
+            let popup_definition = self
+                .select_popup
+                .filter(|(owner, _)| *owner == id)
+                .map(|(owner, content)| self.select_popup_definition(owner, content))
+                .transpose()?;
+            let popups = &mut self.popups;
             let response = self.runtime.update(
                 id,
                 Dirty::PAINT.union(Dirty::SEMANTICS),
@@ -978,6 +1434,33 @@ impl Gallery {
                         }
                         Widget::Slider(slider) => {
                             slider.pointer(event, bounds)?;
+                        }
+                        Widget::Select(select, press) => {
+                            if press.pointer(event, bounds.contains(event.position)) {
+                                if select.is_open(popups) {
+                                    select
+                                        .close(popups, |id| id == popup_definition.unwrap().owner);
+                                } else {
+                                    select.open(
+                                        popups,
+                                        popup_definition.ok_or("missing select popup")?,
+                                    )?;
+                                }
+                            }
+                        }
+                        Widget::Table(table) => {
+                            if let PointerPhase::Scroll { delta_x, delta_y } = event.phase {
+                                table.scroll_by(LogicalPoint::new(-delta_x, -delta_y));
+                            } else if event.phase == PointerPhase::Down
+                                && event.button == Some(PointerButton::Primary)
+                                && event.position.y >= bounds.top() + table.row_height()
+                            {
+                                table.pointer(
+                                    event.position - bounds.origin,
+                                    event.modifiers.shift,
+                                    event.modifiers.ctrl,
+                                )?;
+                            }
                         }
                         Widget::Tabs(group)
                             if event.phase == PointerPhase::Down
@@ -1051,8 +1534,23 @@ impl Gallery {
         Ok(context)
     }
     fn accessibility(&mut self, action: RoutedAction) -> Result<()> {
+        if let Some((owner, key, column)) = self.cells.get(&action.owner).cloned() {
+            self.focus(Some(owner), 0)?;
+            self.runtime.update(
+                owner,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |widget: &mut Widget| -> Result<()> {
+                    if let Widget::Table(table) = widget {
+                        table.focus_cell(&key, column)?;
+                    }
+                    Ok(())
+                },
+            )??;
+            return Ok(());
+        }
         if let Some((owner, key)) = self.rows.get(&action.owner).cloned() {
             self.focus(Some(owner), 0)?;
+            let popups = &mut self.popups;
             self.runtime.update(
                 owner,
                 Dirty::PAINT.union(Dirty::SEMANTICS),
@@ -1072,6 +1570,9 @@ impl Gallery {
                         },
                         Widget::Radio(group) => group.select(&key)?,
                         Widget::Tabs(group) => group.select(&key)?,
+                        Widget::Select(select, _) => {
+                            select.activate(&key, popups, |id| id == owner)?;
+                        }
                         _ => {}
                     }
                     Ok(())
@@ -1081,6 +1582,32 @@ impl Gallery {
         }
         if action.action == ControlAction::Focus {
             return self.focus(Some(action.owner), 0);
+        }
+        if let Some((owner, content)) = self.select_popup
+            && action.owner == owner
+            && matches!(
+                action.action,
+                ControlAction::Expand | ControlAction::Collapse
+            )
+        {
+            self.focus(Some(owner), 0)?;
+            let popup = self.select_popup_definition(owner, content)?;
+            let popups = &mut self.popups;
+            self.runtime.update(
+                owner,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |widget: &mut Widget| -> Result<()> {
+                    if let Widget::Select(select, _) = widget {
+                        if action.action == ControlAction::Expand {
+                            select.open(popups, popup)?;
+                        } else {
+                            select.close(popups, |id| id == owner);
+                        }
+                    }
+                    Ok(())
+                },
+            )??;
+            return Ok(());
         }
         let mut activated = false;
         self.runtime.update(
@@ -1197,6 +1724,16 @@ impl App {
             .shared_window();
         let scale = ScaleFactor::new(window.scale_factor() as f32)?;
         let now = self.started.elapsed().as_millis() as u64;
+        if !self.gallery.native_active
+            && matches!(
+                &event,
+                PlatformWindowEvent::Keyboard(_)
+                    | PlatformWindowEvent::TextInput(_)
+                    | PlatformWindowEvent::Ime(_)
+            )
+        {
+            return Ok(());
+        }
         match &event {
             PlatformWindowEvent::Pointer(_) => self.gallery.prepare_input(scale, now)?,
             PlatformWindowEvent::Keyboard(key)
@@ -1208,6 +1745,8 @@ impl App {
                                 | NamedKey::ArrowRight
                                 | NamedKey::ArrowUp
                                 | NamedKey::ArrowDown
+                                | NamedKey::PageUp
+                                | NamedKey::PageDown
                         )
                     ) =>
             {
@@ -1284,42 +1823,14 @@ impl App {
                 }
             }
             PlatformWindowEvent::TextInput(text) => {
-                if let Some(id) = self.gallery.runtime.focused(self.gallery.window)? {
-                    self.gallery
-                        .runtime
-                        .update(id, Dirty::PAINT, |widget: &mut Widget| {
-                            if let Some(field) = widget.field()
-                                && !field.editor().read_only()
-                            {
-                                field.insert_text(
-                                    &text,
-                                    self.started.elapsed().as_millis() as u64,
-                                )?;
-                            }
-                            Ok::<_, TextError>(())
-                        })??;
-                }
+                self.gallery.native_text(&text, now)?;
             }
             PlatformWindowEvent::Ime(ime) => {
-                if let Some(id) = self.gallery.runtime.focused(self.gallery.window)? {
-                    self.gallery
-                        .runtime
-                        .update(id, Dirty::PAINT, |widget: &mut Widget| {
-                            if let Some(field) = widget.field() {
-                                view_platform::text::dispatch_ime(
-                                    field.editor_mut(),
-                                    &ime,
-                                    self.started.elapsed().as_millis() as u64,
-                                )?;
-                            }
-                            Ok::<_, TextError>(())
-                        })??;
-                }
+                self.gallery.native_ime(&ime, now)?;
             }
-            PlatformWindowEvent::Focused(false) => {
-                self.gallery.runtime.cancel_pointer(self.gallery.window)?;
-                self.gallery
-                    .focus(None, self.started.elapsed().as_millis() as u64)?;
+            PlatformWindowEvent::Focused(active) => {
+                self.gallery.set_native_active(active, now)?;
+                self.next_blink = Instant::now() + Duration::from_millis(500);
             }
             PlatformWindowEvent::FileDropped(path) => {
                 self.gallery.status = format!(
@@ -1346,7 +1857,7 @@ impl PlatformHandler for App {
                     self.gallery.window,
                     PlatformWindow::default_attributes(
                         "view control gallery",
-                        LogicalSize::new(900.0, 740.0),
+                        LogicalSize::new(900.0, 1000.0),
                     )
                     .with_visible(false)
                     .with_active(false),
@@ -1371,8 +1882,10 @@ impl PlatformHandler for App {
                     .update(id, Dirty::PAINT, |widget: &mut Widget| {
                         widget.field().unwrap().preedit("preedit", Some((7, 7)))
                     })??;
+            } else {
+                self.gallery.set_native_active(window.has_focus(), 0)?;
             }
-            let (_, tree) = self.gallery.prepare([900, 740], ScaleFactor::ONE, 0)?;
+            let (_, tree) = self.gallery.prepare([900, 1000], ScaleFactor::ONE, 0)?;
             shell.enable_accessibility(
                 event_loop,
                 self.gallery.window,
@@ -1396,7 +1909,7 @@ impl PlatformHandler for App {
                 wgpu::Features::empty(),
                 wgpu::Limits::default(),
             ))??;
-            let surface = WindowSurface::new(surface, &adapter, &context, [900, 740])?;
+            let surface = WindowSurface::new(surface, &adapter, &context, [900, 1000])?;
             let renderer = Renderer::new(context.clone(), surface.format(), Budgets::default())?;
             self.gpu = Some(Gpu {
                 context,
@@ -1452,7 +1965,7 @@ impl PlatformHandler for App {
             let phase = count % 400;
             let step = if phase < 200 { phase } else { 399 - phase };
             let _ =
-                window.request_inner_size(winit::dpi::PhysicalSize::new(900 + step, 740 + step));
+                window.request_inner_size(winit::dpi::PhysicalSize::new(900 + step, 1000 + step));
             self.draw(shell).map_err(platform)?;
             let completed = count + 1;
             if completed.is_multiple_of(100) {
@@ -1475,8 +1988,10 @@ impl PlatformHandler for App {
             }
             return Ok(());
         }
+        let mut changed = false;
         if let Some(adapter) = shell.accessibility_mut(self.gallery.window) {
             for queued in adapter.drain()? {
+                changed = true;
                 match self.gallery.bridge.route(queued.revision, &queued.request) {
                     Ok(action) => self.gallery.accessibility(action).map_err(platform)?,
                     Err(error) => {
@@ -1485,14 +2000,27 @@ impl PlatformHandler for App {
                 }
             }
         }
-        if !self.hidden {
-            if Instant::now() >= self.next_blink {
-                self.next_blink = Instant::now() + Duration::from_millis(500);
-                if let Some(window) = shell.get_window(self.gallery.window) {
-                    window.raw_window().request_redraw();
-                }
+        if changed && let Some(window) = shell.get_window(self.gallery.window) {
+            window.request_redraw();
+        }
+        let deadline = if self.hidden {
+            None
+        } else {
+            self.gallery
+                .next_caret_blink(self.started.elapsed().as_millis() as u64)
+                .map_err(platform)?
+                .and_then(|millis| self.started.checked_add(Duration::from_millis(millis)))
+        };
+        if let Some(deadline) = deadline {
+            if Instant::now() >= self.next_blink
+                && let Some(window) = shell.get_window(self.gallery.window)
+            {
+                window.raw_window().request_redraw();
             }
+            self.next_blink = deadline;
             event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(self.next_blink));
+        } else {
+            event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
         }
         Ok(())
     }
@@ -1538,7 +2066,7 @@ fn main() -> Result<()> {
     profiles()?;
     let mut gallery = Gallery::new()?;
     if mode == "--headless" {
-        let (paint, tree) = gallery.prepare([900, 740], ScaleFactor::ONE, 0)?;
+        let (paint, tree) = gallery.prepare([900, 1000], ScaleFactor::ONE, 0)?;
         assert!(paint.items.len() > 30);
         assert!(tree.nodes.len() > 15);
         println!(
@@ -1579,7 +2107,7 @@ fn main() -> Result<()> {
                 field.preedit("preedit selection", Some((0, 7)))
             })??;
         for scale in [1.0, 1.5, 2.0] {
-            let size = [(900.0 * scale) as u32, (740.0 * scale) as u32];
+            let size = [(900.0 * scale) as u32, (1000.0 * scale) as u32];
             let (snapshot, _) = gallery.prepare(size, ScaleFactor::new(scale)?, 0)?;
             let target = context.target(size)?;
             let readback = renderer
@@ -1730,6 +2258,120 @@ mod tests {
         };
         assert!(!button.behavior.state().pressed);
     }
+
+    #[test]
+    fn gallery_native_blur_retains_focus_rejects_late_edits_and_masks_repeated_paints() {
+        let mut gallery = Gallery::new().unwrap();
+        let editor = *gallery.ids.iter().find(|id| matches!(gallery.runtime.state::<Widget>(**id), Ok(Widget::Field(field, _)) if !field.editor().read_only())).unwrap();
+        gallery.focus(Some(editor), 0).unwrap();
+        gallery.native_text("before", 0).unwrap();
+        gallery
+            .native_ime(
+                &view_platform::ImeEvent::Preedit("pending".into(), Some((7, 7))),
+                1,
+            )
+            .unwrap();
+        gallery.set_native_active(false, 2).unwrap();
+        assert_eq!(
+            gallery.runtime.focused(gallery.window).unwrap(),
+            Some(editor)
+        );
+        assert!(gallery.next_caret_blink(0).unwrap().is_none());
+        let before = match gallery.runtime.state::<Widget>(editor).unwrap() {
+            Widget::Field(field, _) => field.snapshot(),
+            _ => unreachable!(),
+        };
+        assert!(before.composition.is_none());
+        for now in [3, 510, 1010] {
+            let (_, tree) = gallery.prepare([900, 1000], ScaleFactor::ONE, now).unwrap();
+            assert_eq!(tree.focus, gallery.bridge.id(gallery.root).unwrap());
+            assert!(gallery.candidate.is_none());
+        }
+        gallery.native_text("late", 1011).unwrap();
+        gallery
+            .native_ime(&view_platform::ImeEvent::Preedit("late".into(), None), 1012)
+            .unwrap();
+        gallery
+            .native_ime(&view_platform::ImeEvent::Commit("late".into()), 1013)
+            .unwrap();
+        gallery
+            .key(
+                KeyboardEvent {
+                    key: Key::Named(NamedKey::Backspace),
+                    phase: KeyPhase::Down,
+                    modifiers: Modifiers::default(),
+                    timestamp: 1014,
+                },
+                &mut view_text::MemoryClipboard::default(),
+            )
+            .unwrap();
+        match gallery.runtime.state::<Widget>(editor).unwrap() {
+            Widget::Field(field, _) => {
+                assert_eq!(field.snapshot(), before);
+                assert!(!field.focused());
+            }
+            _ => unreachable!(),
+        }
+        gallery.set_native_active(true, 1020).unwrap();
+        let (_, tree) = gallery
+            .prepare([900, 1000], ScaleFactor::ONE, 1021)
+            .unwrap();
+        assert_eq!(tree.focus, gallery.bridge.id(editor).unwrap());
+        assert!(gallery.candidate.is_some());
+        assert!(gallery.next_caret_blink(0).unwrap().is_some());
+        gallery.native_text("after", 1022).unwrap();
+        match gallery.runtime.state::<Widget>(editor).unwrap() {
+            Widget::Field(field, _) => {
+                assert!(field.snapshot().text.text().starts_with("beforeafter"))
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn gallery_inactive_hover_and_wheel_survive_but_held_press_cannot_activate() {
+        let mut gallery = Gallery::new().unwrap();
+        gallery.pointer(pointer(PointerPhase::Down)).unwrap();
+        let button = gallery.runtime.focused(gallery.window).unwrap().unwrap();
+        gallery.set_native_active(false, 1).unwrap();
+        assert_eq!(gallery.runtime.captured(gallery.window).unwrap(), None);
+        gallery.pointer(pointer(PointerPhase::Move)).unwrap();
+        let Widget::Button(state) = gallery.runtime.state::<Widget>(button).unwrap() else {
+            panic!("button")
+        };
+        assert!(state.behavior.state().hovered);
+        assert!(!state.behavior.state().pressed && !state.behavior.state().focused);
+        gallery.pointer(pointer(PointerPhase::Up)).unwrap();
+        gallery.set_native_active(true, 2).unwrap();
+        gallery.pointer(pointer(PointerPhase::Up)).unwrap();
+        assert_ne!(gallery.status, "Apply activated once");
+        gallery.set_native_active(false, 3).unwrap();
+        let list = *gallery
+            .ids
+            .iter()
+            .find(|id| matches!(gallery.runtime.state::<Widget>(**id), Ok(Widget::List(_))))
+            .unwrap();
+        let bounds = gallery.runtime.global_rect(list).unwrap();
+        gallery
+            .pointer(PointerEvent {
+                phase: PointerPhase::Scroll {
+                    delta_x: 0.0,
+                    delta_y: -48.0,
+                },
+                position: bounds.origin + LogicalPoint::new(20.0, 20.0),
+                ..pointer(PointerPhase::Move)
+            })
+            .unwrap();
+        let Widget::List(state) = gallery.runtime.state::<Widget>(list).unwrap() else {
+            panic!("list")
+        };
+        assert_eq!(state.scroll.offset.y, 48.0);
+        assert_eq!(
+            gallery.runtime.focused(gallery.window).unwrap(),
+            Some(button)
+        );
+        assert!(gallery.next_caret_blink(0).unwrap().is_none());
+    }
 }
 
 #[cfg(test)]
@@ -1755,7 +2397,7 @@ mod tab_gallery_tests {
                 &mut MemoryClipboard::default(),
             )
             .unwrap();
-        let (paint, tree) = gallery.prepare([900, 740], ScaleFactor::ONE, 1).unwrap();
+        let (paint, tree) = gallery.prepare([900, 1000], ScaleFactor::ONE, 1).unwrap();
         assert!(!paint.items.is_empty());
         let Widget::Tabs(tabs) = gallery.runtime.state::<Widget>(id).unwrap() else {
             panic!()

@@ -8,7 +8,9 @@ use std::{collections::BTreeSet, sync::Arc};
 use view_core::Revision;
 use wgpu::util::DeviceExt;
 
+mod assets;
 mod picking;
+pub use assets::*;
 pub use picking::*;
 
 use crate::{
@@ -99,6 +101,81 @@ impl Transform3D {
         columns[3] = [offset[0], offset[1], offset[2], 1.0];
         Self::from_columns(columns)
     }
+    /// Translation component of this affine transform.
+    pub fn translation_part(self) -> [f32; 3] {
+        [self.0.0[3][0], self.0.0[3][1], self.0.0[3][2]]
+    }
+    /// Replace translation while preserving this transform's linear component.
+    pub fn with_translation(self, offset: [f32; 3]) -> Result<Self, RenderError> {
+        let mut columns = self.0.0;
+        columns[3] = [offset[0], offset[1], offset[2], 1.0];
+        Self::from_columns(columns)
+    }
+    fn normal_matrix(self) -> Result<[[f32; 4]; 3], RenderError> {
+        let matrix = self.0.0;
+        let a = [
+            [
+                f64::from(matrix[0][0]),
+                f64::from(matrix[1][0]),
+                f64::from(matrix[2][0]),
+            ],
+            [
+                f64::from(matrix[0][1]),
+                f64::from(matrix[1][1]),
+                f64::from(matrix[2][1]),
+            ],
+            [
+                f64::from(matrix[0][2]),
+                f64::from(matrix[1][2]),
+                f64::from(matrix[2][2]),
+            ],
+        ];
+        let cofactors = [
+            [
+                a[1][1] * a[2][2] - a[1][2] * a[2][1],
+                a[1][2] * a[2][0] - a[1][0] * a[2][2],
+                a[1][0] * a[2][1] - a[1][1] * a[2][0],
+            ],
+            [
+                a[0][2] * a[2][1] - a[0][1] * a[2][2],
+                a[0][0] * a[2][2] - a[0][2] * a[2][0],
+                a[0][1] * a[2][0] - a[0][0] * a[2][1],
+            ],
+            [
+                a[0][1] * a[1][2] - a[0][2] * a[1][1],
+                a[0][2] * a[1][0] - a[0][0] * a[1][2],
+                a[0][0] * a[1][1] - a[0][1] * a[1][0],
+            ],
+        ];
+        let determinant =
+            a[0][0] * cofactors[0][0] + a[0][1] * cofactors[0][1] + a[0][2] * cofactors[0][2];
+        if !determinant.is_finite() || determinant.abs() <= 1.0e-20 {
+            return Err(invalid("lit scene object has a singular transform"));
+        }
+        let mut columns = [[0.0; 4]; 3];
+        for col in 0..3 {
+            for row in 0..3 {
+                let value = cofactors[row][col] / determinant;
+                if !value.is_finite() || value.abs() > f64::from(f32::MAX) {
+                    return Err(invalid("scene normal matrix overflow"));
+                }
+                columns[col][row] = value as f32;
+            }
+        }
+        // Only direction is used by the shader. A common positive scale leaves
+        // the inverse-transpose result equivalent while bounding vertex products
+        // before interpolation and fragment normalization.
+        let magnitude = columns
+            .iter()
+            .flatten()
+            .fold(0.0_f32, |maximum, value| maximum.max(value.abs()));
+        for column in &mut columns {
+            for value in column {
+                *value /= magnitude;
+            }
+        }
+        Ok(columns)
+    }
     /// Independent scale on the local axes.
     pub fn scale(scale: [f32; 3]) -> Result<Self, RenderError> {
         Self::from_columns([
@@ -131,6 +208,7 @@ impl Transform3D {
 /// Validated right-handed perspective camera. Aspect derives from the target.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PerspectiveCamera {
+    eye: [f32; 3],
     view: Matrix4,
     vertical_fov: f32,
     near: f32,
@@ -179,6 +257,7 @@ impl PerspectiveCamera {
             }
             Ok(v.map(|x| x / length))
         }
+        let eye_world = eye;
         let eye = eye.map(f64::from);
         let z = normalized(std::array::from_fn(|i| eye[i] - f64::from(target[i])))?;
         let up = normalized(up.map(f64::from))?;
@@ -196,6 +275,7 @@ impl PerspectiveCamera {
             ],
         ])?;
         let camera = Self {
+            eye: eye_world,
             view,
             vertical_fov,
             near,
@@ -207,6 +287,10 @@ impl PerspectiveCamera {
     /// World-to-view matrix.
     pub fn view(self) -> Matrix4 {
         self.view
+    }
+    /// Camera position in world space.
+    pub fn eye(self) -> [f32; 3] {
+        self.eye
     }
     /// World-to-clip matrix for wgpu's 0..1 depth convention.
     pub fn view_projection(self, aspect: f32) -> Result<Matrix4, RenderError> {
@@ -230,6 +314,7 @@ impl PerspectiveCamera {
 #[derive(Clone, Debug)]
 pub struct Mesh3D {
     positions: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
     indices: Vec<u32>,
 }
 impl Mesh3D {
@@ -245,11 +330,20 @@ impl Mesh3D {
         {
             return Err(invalid("invalid triangle mesh"));
         }
-        Ok(Self { positions, indices })
+        let normals = derive_vertex_normals(&positions, &indices);
+        Ok(Self {
+            positions,
+            normals,
+            indices,
+        })
     }
     /// Local-space positions, in application world units.
     pub fn positions(&self) -> &[[f32; 3]] {
         &self.positions
+    }
+    /// Area-weighted vertex normals derived from the triangle faces.
+    pub fn normals(&self) -> &[[f32; 3]] {
+        &self.normals
     }
     /// Triangle-list indices.
     pub fn indices(&self) -> &[u32] {
@@ -257,9 +351,103 @@ impl Mesh3D {
     }
 }
 
-/// Opaque unlit sRGB base color. Transparency and lighting are outside this profile.
+fn derive_vertex_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+    let mut accumulated = vec![[0.0f64; 3]; positions.len()];
+    for triangle in indices.as_chunks::<3>().0 {
+        let a = positions[triangle[0] as usize].map(f64::from);
+        let b = positions[triangle[1] as usize].map(f64::from);
+        let c = positions[triangle[2] as usize].map(f64::from);
+        let ab = std::array::from_fn::<_, 3, _>(|i| b[i] - a[i]);
+        let ac = std::array::from_fn::<_, 3, _>(|i| c[i] - a[i]);
+        let face = [
+            ab[1] * ac[2] - ab[2] * ac[1],
+            ab[2] * ac[0] - ab[0] * ac[2],
+            ab[0] * ac[1] - ab[1] * ac[0],
+        ];
+        for &index in triangle {
+            for (component, value) in face.iter().enumerate() {
+                accumulated[index as usize][component] += value;
+            }
+        }
+    }
+    accumulated
+        .into_iter()
+        .map(|normal| {
+            let length = normal.iter().map(|value| value * value).sum::<f64>().sqrt();
+            if !length.is_finite() || length <= 1.0e-30 {
+                [0.0, 0.0, 1.0]
+            } else {
+                normal.map(|value| (value / length) as f32)
+            }
+        })
+        .collect()
+}
+
+/// Finite directional-light source; direction points from the surface to the light.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BasicMaterial([f32; 3]);
+pub struct DirectionalLight {
+    direction: [f32; 3],
+    color: [f32; 3],
+    intensity: f32,
+}
+impl DirectionalLight {
+    /// Construct a normalized light direction, sRGB light color, and linear intensity.
+    pub fn new(
+        direction_to_light: [f32; 3],
+        color_srgb: [f32; 3],
+        intensity: f32,
+    ) -> Result<Self, RenderError> {
+        if !direction_to_light.iter().all(|v| v.is_finite())
+            || !color_srgb
+                .iter()
+                .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+            || !intensity.is_finite()
+            || !(0.0..=100_000.0).contains(&intensity)
+        {
+            return Err(invalid("invalid directional light"));
+        }
+        let length = direction_to_light
+            .iter()
+            .map(|v| f64::from(*v).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        if length <= 1.0e-12 {
+            return Err(invalid("directional light direction is zero"));
+        }
+        Ok(Self {
+            direction: direction_to_light.map(|v| (f64::from(v) / length) as f32),
+            color: color_srgb,
+            intensity,
+        })
+    }
+    pub fn direction(self) -> [f32; 3] {
+        self.direction
+    }
+    pub fn color_srgb(self) -> [f32; 3] {
+        self.color
+    }
+    pub fn intensity(self) -> f32 {
+        self.intensity
+    }
+    fn linear_radiance(self) -> [f32; 3] {
+        srgb_to_linear(self.color).map(|v| v * self.intensity)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MetallicRoughness {
+    metallic: f32,
+    roughness: f32,
+    light: DirectionalLight,
+}
+
+/// Opaque sRGB scene material. `new` remains unlit; the optional
+/// metallic/roughness profile uses one directional light and derived mesh normals.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BasicMaterial {
+    color: [f32; 3],
+    metallic_roughness: Option<MetallicRoughness>,
+}
 impl BasicMaterial {
     /// Color channels must be finite and in 0..=1.
     pub fn new(srgb: [f32; 3]) -> Result<Self, RenderError> {
@@ -267,25 +455,79 @@ impl BasicMaterial {
             .iter()
             .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
         {
-            Ok(Self(srgb))
+            Ok(Self {
+                color: srgb,
+                metallic_roughness: None,
+            })
         } else {
             Err(invalid("invalid scene material"))
         }
     }
+    /// Create a basic Cook-Torrance metallic/roughness material. Roughness is
+    /// constrained to 0.04..=1 to avoid a singular zero-width microfacet lobe.
+    pub fn metallic_roughness(
+        base_color_srgb: [f32; 3],
+        metallic: f32,
+        roughness: f32,
+        light: DirectionalLight,
+    ) -> Result<Self, RenderError> {
+        if !base_color_srgb
+            .iter()
+            .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+            || !metallic.is_finite()
+            || !(0.0..=1.0).contains(&metallic)
+            || !roughness.is_finite()
+            || !(0.04..=1.0).contains(&roughness)
+        {
+            return Err(invalid("invalid metallic-roughness material"));
+        }
+        Ok(Self {
+            color: base_color_srgb,
+            metallic_roughness: Some(MetallicRoughness {
+                metallic,
+                roughness,
+                light,
+            }),
+        })
+    }
     /// Original sRGB color.
     pub fn srgb(self) -> [f32; 3] {
-        self.0
+        self.color
     }
     fn linear(self) -> [f32; 4] {
-        let rgb = self.0.map(|v| {
-            if v <= 0.04045 {
-                v / 12.92
-            } else {
-                ((v + 0.055) / 1.055).powf(2.4)
-            }
-        });
+        let rgb = srgb_to_linear(self.color);
         [rgb[0], rgb[1], rgb[2], 1.0]
     }
+    fn params(self) -> ([f32; 4], [f32; 4], [f32; 4]) {
+        match self.metallic_roughness {
+            Some(profile) => (
+                [profile.metallic, profile.roughness, 1.0, 0.03],
+                [
+                    profile.light.direction[0],
+                    profile.light.direction[1],
+                    profile.light.direction[2],
+                    0.0,
+                ],
+                [
+                    profile.light.linear_radiance()[0],
+                    profile.light.linear_radiance()[1],
+                    profile.light.linear_radiance()[2],
+                    0.0,
+                ],
+            ),
+            None => ([0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0; 4]),
+        }
+    }
+}
+
+fn srgb_to_linear(srgb: [f32; 3]) -> [f32; 3] {
+    srgb.map(|v| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    })
 }
 
 /// App-owned object description; IDs have meaning only in the owning scene.
@@ -299,6 +541,20 @@ pub struct SceneObject {
     pub transform: Transform3D,
     /// Opaque unlit surface color.
     pub material: BasicMaterial,
+}
+impl SceneObject {
+    /// Sample an application-owned translation track into this object's current
+    /// transform, preserving its rotation and scale.
+    pub fn apply_translation_animation(
+        &mut self,
+        animation: &TranslationAnimation,
+        time_seconds: f64,
+    ) -> Result<(), RenderError> {
+        self.transform = self
+            .transform
+            .with_translation(animation.sample(time_seconds)?)?;
+        Ok(())
+    }
 }
 
 /// Immutable scene/camera description, independent of UI tree ownership.
@@ -344,7 +600,7 @@ impl SceneSnapshot {
 pub struct SceneBudgets {
     /// Maximum object/draw count.
     pub max_objects: usize,
-    /// Vertex, index and uniform bytes (shared meshes counted per instance).
+    /// Position/normal vertex, index and uniform bytes (meshes counted per instance).
     pub upload_bytes: u64,
     /// Maximum color/depth extent in pixels; each depth pixel costs four bytes.
     pub target_pixels: u64,
@@ -363,9 +619,21 @@ impl Default for SceneBudgets {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniform {
     mvp: [[f32; 4]; 4],
+    model: [[f32; 4]; 4],
     color: [f32; 4],
+    params: [f32; 4],
+    light_direction: [f32; 4],
+    light_color: [f32; 4],
+    camera_position: [f32; 4],
+    normal_matrix: [[f32; 4]; 3],
 }
-const _: () = assert!(std::mem::size_of::<Uniform>() == 80);
+const _: () = assert!(std::mem::size_of::<Uniform>() == 256);
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct GpuVertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+}
 struct GpuDraw {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
@@ -401,8 +669,9 @@ impl SceneProvider {
     fn validate_budget(snapshot: &SceneSnapshot, budgets: SceneBudgets) -> Result<(), RenderError> {
         let mut bytes = 0u64;
         for object in &snapshot.objects {
-            let size =
-                object.mesh.positions.len() as u64 * 12 + object.mesh.indices.len() as u64 * 4 + 80;
+            let size = object.mesh.positions.len() as u64 * std::mem::size_of::<GpuVertex>() as u64
+                + object.mesh.indices.len() as u64 * 4
+                + std::mem::size_of::<Uniform>() as u64;
             bytes = bytes.checked_add(size).ok_or(RenderError::BudgetExceeded)?;
         }
         if snapshot.objects.len() > budgets.max_objects || bytes > budgets.upload_bytes {
@@ -482,20 +751,43 @@ impl RenderProvider for SceneProvider {
             .objects
             .iter()
             .map(|object| {
-                if object.mesh.positions.len() as u64 * 12 > context.device.limits().max_buffer_size
+                if object.mesh.positions.len() as u64 * std::mem::size_of::<GpuVertex>() as u64
+                    > context.device.limits().max_buffer_size
                     || object.mesh.indices.len() as u64 * 4
                         > context.device.limits().max_buffer_size
                 {
                     return Err(RenderError::BudgetExceeded);
                 }
                 let mvp = vp.multiply(object.transform.matrix())?;
+                let model = object.transform.matrix();
                 // Prevent finite matrix/vertex combinations from overflowing in the shader.
                 for p in &object.mesh.positions {
                     mvp.transform([p[0], p[1], p[2], 1.0])?;
+                    model.transform([p[0], p[1], p[2], 1.0])?;
                 }
+                let (params, light_direction, light_color) = object.material.params();
                 Ok(Uniform {
                     mvp: mvp.0,
+                    model: model.0,
                     color: object.material.linear(),
+                    params,
+                    light_direction,
+                    light_color,
+                    camera_position: [
+                        self.snapshot.camera.eye[0],
+                        self.snapshot.camera.eye[1],
+                        self.snapshot.camera.eye[2],
+                        1.0,
+                    ],
+                    normal_matrix: if params[2] > 0.5 {
+                        object.transform.normal_matrix()?
+                    } else {
+                        [
+                            [1.0, 0.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0, 0.0],
+                            [0.0, 0.0, 1.0, 0.0],
+                        ]
+                    },
                 })
             })
             .collect::<Result<Vec<_>, RenderError>>()?;
@@ -505,12 +797,22 @@ impl RenderProvider for SceneProvider {
             .iter()
             .zip(uniforms)
             .map(|(object, uniform)| {
+                let gpu_vertices: Vec<_> = object
+                    .mesh
+                    .positions
+                    .iter()
+                    .zip(&object.mesh.normals)
+                    .map(|(position, normal)| GpuVertex {
+                        position: *position,
+                        normal: *normal,
+                    })
+                    .collect();
                 let vertices =
                     context
                         .device
                         .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                             label: Some("view scene vertices"),
-                            contents: bytemuck::cast_slice(&object.mesh.positions),
+                            contents: bytemuck::cast_slice(&gpu_vertices),
                             usage: wgpu::BufferUsages::VERTEX,
                         });
                 let indices =
@@ -595,7 +897,7 @@ impl RenderProvider for SceneProvider {
                 label: Some("view basic scene"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("scene.wgsl").into()),
             });
-        let attributes = wgpu::vertex_attr_array![0 => Float32x3];
+        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
         let pipeline = context
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -606,7 +908,7 @@ impl RenderProvider for SceneProvider {
                     entry_point: Some("vs"),
                     compilation_options: Default::default(),
                     buffers: &[Some(wgpu::VertexBufferLayout {
-                        array_stride: 12,
+                        array_stride: std::mem::size_of::<GpuVertex>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &attributes,
                     })],

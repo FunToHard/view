@@ -24,7 +24,7 @@ fn rect(x: f32, y: f32, w: f32, h: f32) -> LogicalRect {
 }
 fn fonts() -> CosmicBackend {
     CosmicBackend::from_fonts(
-        [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+        [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
         32,
     )
     .unwrap()

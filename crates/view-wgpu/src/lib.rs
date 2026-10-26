@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 mod context;
+/// Bounded CPU-side SDR image document operations and deterministic exports.
+pub mod document;
 mod paint;
 mod provider;
 mod renderer;

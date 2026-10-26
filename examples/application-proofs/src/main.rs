@@ -1,5 +1,8 @@
 fn main() -> view_application_proofs::Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args == ["--stress"] {
+        return view_application_proofs::performance::run();
+    }
     #[cfg(all(feature = "desktop-test", windows))]
     if args == ["--desktop-ime", "--selected-desktop"] {
         return view_application_proofs::native::run_japanese();

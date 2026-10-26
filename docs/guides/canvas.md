@@ -56,3 +56,6 @@ This API began in M3B-01. The [embedding proof](embedding.md) now exercises a
 bounded app-owned tiled brush document, rendered preview and one-stroke undo.
 See [M3B evidence](../plan/evidence/m3b-completion.md) for executed layers and
 native-input certification limits.
+
+For bounded tiled RGBA image edits, undo, validated pen samples, and deterministic
+SDR export, see the [`view_wgpu::document` guide](image-documents.md).

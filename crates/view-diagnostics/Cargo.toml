@@ -1,0 +1,27 @@
+[package]
+name = "view-diagnostics"
+description = "Optional bounded host-owned diagnostic reports for view."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+view-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, optional = true, features = ["Win32_System_Diagnostics_Debug", "Win32_System_ErrorReporting"] }
+
+[features]
+failure-fixture = ["dep:windows"]
+
+[[bin]]
+name = "diagnostic-fixture"
+required-features = ["failure-fixture"]
+
+[lints]
+workspace = true

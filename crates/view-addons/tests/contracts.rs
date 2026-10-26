@@ -203,7 +203,9 @@ fn actual_guest_review_command_edits_once_and_host_undo_is_independent() {
     f.until(|s| s.doc.undo.len() == 1);
     assert_eq!(f.doc.text, "the");
     assert_eq!(f.doc.undo.pop().unwrap(), "teh");
-    assert!(f.addon.diagnostics().contains("trusted native"));
+    // Stderr is drained independently of the protocol pipe; observing a reply
+    // does not establish that the diagnostic reader has been scheduled yet.
+    f.until(|s| s.addon.diagnostics().contains("trusted native"));
     f.addon.deactivate(&mut f.rt).unwrap();
     f.until(|s| {
         s.addon
@@ -847,7 +849,7 @@ fn painter_preserves_clip_and_blink_and_rejects_unsupported_transforms() {
         .unwrap();
     f.rt.flush(&mut ()).unwrap();
     let mut fonts = view_controls::view_text::CosmicBackend::from_fonts(
-        [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+        [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
         8,
     )
     .unwrap();

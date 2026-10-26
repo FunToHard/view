@@ -15,6 +15,7 @@ pub mod desktop;
 pub mod dpi;
 pub mod error;
 pub mod events;
+pub mod monitor;
 pub mod services;
 pub mod shell;
 #[cfg(feature = "text")]

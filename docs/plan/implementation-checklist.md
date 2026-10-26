@@ -1,6 +1,6 @@
 # Ordered implementation checklist
 
-Baseline: design revision 0.4. Updated: 2026-10-23. This is the progress checklist
+Baseline: design revision 0.4. Updated: 2026-10-25. This is the progress checklist
 for the complete selected developer preview, followed by the deferred roadmap.
 Creating this checklist does not execute its tasks.
 
@@ -8,11 +8,16 @@ Creating this checklist does not execute its tasks.
 
 - [x] **UI-01** Extend the existing gallery with a horizontal tab list, disabled/selected/focused states, panel switching, shared keyboard selection and semantic actions. Evidence: [implementation and local checks](evidence/controls-first.md).
 - [ ] **UI-02** Expand existing button/check/text/scroll state and conformance coverage, including native IME/accessibility and measured interaction budgets where applicable.
-- [ ] **UI-03** Add a dropdown/select control using the existing popup/focus ownership model, with keyboard and semantic parity.
-- [ ] **UI-04** Expand menu/dialog and list/tree presentations, then introduce a bounded table control with its own acceptance profile.
+- [x] **UI-03** Add a dropdown/select control using the existing popup/focus ownership model, with keyboard and semantic parity.
+- [x] **UI-04** Expand menu/dialog and list/tree presentations, then introduce a bounded table control with its own acceptance profile.
+
+UI-03/UI-04 evidence: [shared behavior and presentation contracts](evidence/controls-completion.md).
 
 These are additions to the canonical checklist, not replacement completion claims
 for M4, M8B-06 or F-01. Basic tabs do not imply docking, tear-off or persistence (F-02).
+
+Current scope (2026-10-25): remaining implementation and feasible Later increments
+are active. The earlier priority restriction below is historical.
 
 ## How to use this checklist
 
@@ -277,10 +282,10 @@ remain open. Checked implementation items do not imply those broader gates passe
 - [x] **M5-11** Implement target realization and actionable-point selection through clips/transforms/occlusion/DPI/screen conversion; revalidate before input and fail on non-actionable targets.
 - [x] **M5-12** Implement actual mouse/key/wheel input and observed delivery/results; distinguish semantic ensure-visible from physical scrolling and wheel tests from touchpad coverage.
 - [ ] **M5-13** Run independent hit/scroll fixtures for nested/virtual content, overlays, disabled/offscreen targets, mixed DPI, window movement and layout races.
-- [ ] **M5-14** Run keyboard-first flows: Tab/reverse Tab, arrows/pages, modifiers/shortcuts, modal containment/return, Escape, text deletion/selection and undo.
+- [x] **M5-14** Run keyboard-first flows: Tab/reverse Tab, arrows/pages, modifiers/shortcuts, modal containment/return, Escape, text deletion/selection and undo. Named en-US application proof passed physical Page/Shift+Page and existing flows; this does not certify every control ([evidence](evidence/m5-automation.md)).
 - [ ] **M5-15** Execute named en-US keyboard and Japanese IME scenarios; distinguish physical keys, Unicode insertion and native composition coverage.
 - [x] **M5-16** Compare Rust/CLI/MCP discovery, semantic actions, errors, async results and undo; separately run pointer-select/gizmo-drag/inspector-edit/capture workflows.
-- [ ] **M5-17** Test focus loss, target closure, interrupted runs, inaccessible targets and passive default mode; publish artifacts for failed/uncovered cases.
+- [ ] **M5-17** Test focus loss, target closure, interrupted runs, inaccessible targets and passive default mode; publish artifacts for failed/uncovered cases. Owned foreground loss, closure, hidden-target rejection and held-Shift cleanup on owner drop now pass; forced termination/elevated/secure desktops remain uncovered ([evidence](evidence/m5-automation.md)).
 - [ ] **M5-18** Close standard-control native conformance gaps and publish actual platform/profile coverage, including accessibility observations and independent geometry/pixel checks.
 
 ## 9. Implement optional webview panels — M6
@@ -325,14 +330,14 @@ Sources: [diagnostics](../design/12-diagnostics-and-crash-policy.md), [validatio
 Capabilities: C-07, C-11, C-17, C-37, C-45; all feature lifecycles.
 Acceptance: T-13/T-15/T-21 plus regression suites from every preceding phase.
 
-- [ ] **M8A-01** Complete the bounded diagnostic envelope: versions/capabilities/revisions/breadcrumbs with host-controlled redaction, storage and retention.
-- [ ] **M8A-02** Implement opt-in panic/reporting hooks that respect host ownership and avoid resuming inconsistent UI state; no automatic upload or implicit global replacement.
-- [ ] **M8A-03** Add compatible Windows WER collection integration/guidance, symbol/build identification and report handling; state unsupported fault/hang cases explicitly.
-- [ ] **M8A-04** Demonstrate healthy-operation application checkpoint/journal recovery independently of crash handling; the framework does not invent a universal document format.
-- [ ] **M8A-05** Test panic/abort/native fault/hang in disposable processes under an independent supervisor, preserving host reporting policy and recovery artifacts.
+- [x] **M8A-01** Complete the bounded diagnostic envelope: versions/capabilities/revisions/breadcrumbs with host-controlled redaction, storage and retention.
+- [x] **M8A-02** Implement opt-in panic/reporting hooks that respect host ownership and avoid resuming inconsistent UI state; no automatic upload or implicit global replacement.
+- [x] **M8A-03** Add compatible Windows WER collection integration/guidance, symbol/build identification and report handling; state unsupported fault/hang cases explicitly.
+- [x] **M8A-04** Demonstrate healthy-operation application checkpoint/journal recovery independently of crash handling; the framework does not invent a universal document format.
+- [x] **M8A-05** Test panic/abort/native fault/hang in disposable processes under an independent supervisor, preserving host reporting policy and recovery artifacts.
 - [ ] **M8A-06** Sweep Windows caption/snap/system menu/move/resize/activation/modal/DPI/text-scale/clipboard/IME/accessibility behavior on the supported product environment.
 - [ ] **M8A-07** Exercise surface/device/process failure, minimize/restore, sleep/resume, display changes and resource exhaustion; verify bounded cleanup or actionable failure.
-- [ ] **M8A-08** Define named workloads, hardware/drivers, font/assets, resolutions, scene sizes and quality settings; separate correctness and performance environments.
+- [x] **M8A-08** Define named workloads, hardware/drivers, font/assets, resolutions, scene sizes and quality settings; separate correctness and performance environments.
 - [ ] **M8A-09** Measure cold/warm p50/p95/p99 UI/scene/composition time, input latency, idle wakeups, memory/allocations, upload volume and webview hot/cold cost.
   Partial local tooling: [staged hardware-DX12 memory probe](../guides/gpu-memory.md)
   records release working set/private commitment and resize/edit retention.
@@ -342,15 +347,19 @@ Acceptance: T-13/T-15/T-21 plus regression suites from every preceding phase.
 - [ ] **M8A-12** Run lifecycle stress/property/fuzz scenarios at native/protocol/editor boundaries; review unsafe code and dependency vulnerabilities/maintenance at release qualification.
 - [ ] **M8A-13** Execute the final Windows/Linux/macOS CPU and provisioned GPU matrix plus Windows physical E2E; publish passed/failed/uncovered/not-applicable manifests.
 
+M8A-08 definition evidence: [named workloads, inputs and environments](../guides/performance-qualification.md).
+
+Evidence for M8A-01–05: [diagnostics and supervised recovery](evidence/m8-diagnostics.md).
+
 ## 12. Qualify packages and the developer preview — M8
 
 Sources: [repository/release policy](repository-and-maintenance.md), [validation](../design/08-delivery-and-validation.md).
 Capabilities: C-40, C-41, C-45 and the whole selected preview. Acceptance: T-39 and all applicable T-* gates.
 
-- [ ] **M8B-01** Audit the crate graph: no reverse dependency from core into platform/GPU/tools; no mandatory webview/MCP/add-on stack for a minimal app.
-- [ ] **M8B-02** Verify minimal/default/supported-full profiles, each public package and independent consumers; test the declared compiler minimum and pinned repository build.
+- [x] **M8B-01** Audit the crate graph: no reverse dependency from core into platform/GPU/tools; no mandatory webview/MCP/add-on stack for a minimal app.
+- [x] **M8B-02** Verify minimal/default/supported-full profiles, each public package and independent consumers; test the declared compiler minimum and pinned repository build.
 - [ ] **M8B-03** Verify public crate-name availability, dependency-order package contents, path-plus-version declarations, licenses/attributions and reproducible artifacts before enabling publication.
-- [ ] **M8B-04** Finalize coordinated pre-1.0 versions, protocol compatibility, changelog, migration/deprecation notes and supported-platform/feature matrices.
+- [x] **M8B-04** Finalize coordinated pre-1.0 versions, protocol compatibility, changelog, migration/deprecation notes and supported-platform/feature matrices.
 - [ ] **M8B-05** Complete setup, architecture, authoring, control SDK, embedding, network UI, automation, webview and add-on guides with compile-tested versioned examples.
 - [ ] **M8B-06** Produce the gallery/editor/storefront/Markdown/host-embedding/add-on/webview proof artifacts with reproducible commands and declared limitations.
 - [ ] **M8B-07** Audit every R-01–R-13 requirement and C-01–C-45 capability against implementation or an explicit deferred entry; close all applicable T-01–T-39 gates except deferred T-20.
@@ -358,19 +367,25 @@ Capabilities: C-40, C-41, C-45 and the whole selected preview. Acceptance: T-39 
 - [ ] **M8B-09** Produce a release candidate from a clean reviewed revision with package dry runs, reports, environment manifests and regression baselines.
 - [ ] **M8B-10** Execute separately requested publication/distribution operations in dependency order; verify delivered artifacts, symbols and versions. This checklist alone does not trigger pushing, package publication or installer signing.
 
+Evidence for M8B-01/M8B-02/M8B-04: [package audit](evidence/m8-packaging.md) and
+[version/compatibility policy](preview-release.md).
+
 ## Later: expansion roadmap, excluded from preview completion
 
-These unchecked items are deliberate scope exclusions, not prerequisites for the
+The owner authorized feasible bounded increments on 2026-10-25; see the
+[decision amendment](../design/09-decisions-and-questions.md) and
+[evaluation](evidence/expansion-feasibility.md). Partial implementation does not
+close an entire expansion profile. These items remain exclusions from the
 developer preview. Ordering below expresses technical dependencies, not a promise
 to implement every option. Each needs a decision amendment, bounded scope and its
 own acceptance plan before becoming active work.
 
-- [ ] **F-01** Expand control profiles/catalogue: general tables, password entry, richer selectable documents and specialized controls after the shared behavior/conformance SDK is proven.
-- [ ] **F-02** Add full docking/tabs/tear-off persistence after multi-window/focus/restoration contracts are proven (C-22).
-- [ ] **F-03** Add advanced large-buffer editor services, rich documents, pagination and collaboration profiles; preserve baseline bidi correctness already required by text controls (C-23).
-- [ ] **F-04** Expand tiled-image processing, brush/pen tooling, formats and document effects beyond the proof fixture, with hardware evidence for advanced input (C-24).
-- [ ] **F-05** Expand scene/material/asset modules, PBR/shadows/animation or integrations according to actual application needs; keep ECS/physics optional (C-25).
-- [ ] **F-06** Expand advanced masks/effects/export and professional color/HDR pipelines after resource/color metadata and output requirements are validated (C-26, C-29).
+- [ ] **F-01** Expand control profiles/catalogue: general tables, password entry, richer selectable documents and specialized controls after the shared behavior/conformance SDK is proven. Partial: read-only bounded tables and shared-editor password entry ([controls](evidence/controls-completion.md), [password evidence](evidence/controls-expansion.md)); richer selectable documents and specialized controls remain open.
+- [ ] **F-02** Add full docking/tabs/tear-off persistence after multi-window/focus/restoration contracts are proven (C-22). Partial: transactional docking/tear-off data, bounded versioned persistence and runtime visibility/focus/capture reconciliation ([evidence](evidence/controls-expansion.md)); hidden native window staging/restoration and physical work-area clamping now pass; rendered drag UX, native activation/capture/IME and physical multi-monitor/DPI qualification remain open.
+- [ ] **F-03** Add advanced large-buffer editor services, rich documents, pagination and collaboration profiles; preserve baseline bidi correctness already required by text controls (C-23). Partial: bounded revision-checked large-buffer editing, literal search and delta history ([evidence](evidence/f03-large-document.md)); styled transactions, measured pagination and conservative disjoint rebasing now pass ([profile](evidence/f03-rich-documents.md)); rich visual controls, complete typography/layout and collaboration transport/CRDT remain open.
+- [ ] **F-04** Expand tiled-image processing, brush/pen tooling, formats and document effects beyond the proof fixture, with hardware evidence for advanced input (C-24). Partial: sparse tiled SDR document edits, undo and validated pen-sample values ([guide](../guides/image-documents.md)); native pen translation and advanced brush hardware remain open.
+- [ ] **F-05** Expand scene/material/asset modules, PBR/shadows/animation or integrations according to actual application needs; keep ECS/physics optional (C-25). Partial: bounded positions-only OBJ import, translation keyframes and explicit GPU example; directional metallic-roughness lighting is implemented; shadows and broader asset/animation profiles remain open ([evidence](evidence/f05-scene-assets.md)).
+- [ ] **F-06** Expand advanced masks/effects/export and professional color/HDR pipelines after resource/color metadata and output requirements are validated (C-26, C-29). Partial: bounded SDR point effects and BMP V4/RGBA export ([guide](../guides/image-documents.md)); linear-light masked source-over and premultiplied blur now pass ([evidence](evidence/f06-masked-image-effects.md)); GPU filtering, professional color and HDR remain open.
 - [ ] **F-07** Add native title-bar content only with complete native behavior certification (C-27).
 - [ ] **F-08** Add arbitrary native GPU resource sharing and transformed/native webview composition through backend-specific ownership/synchronization tests (C-28 expansion, C-30).
 - [ ] **F-09** Evaluate WASM interpreter or C-compatible DLL add-on backends separately; qualify ABI/runtime/trust/unload behavior before selecting either (C-31 expansion).
@@ -379,6 +394,8 @@ own acceptance plan before becoming active work.
 - [ ] **F-12** Evaluate mobile, ARM64, Windows 10 and full Linux/macOS product support separately with native input/accessibility/distribution evidence (C-33 and platform expansions).
 - [ ] **F-13** Evaluate custom crash dump helpers/watchdogs beyond selected WER/reporting integration and separately define their process ownership and recovery limits (C-37 expansion).
 - [ ] **F-14** Evaluate optional macro syntax, typed branch optimizations, CSS/grid layout, render threading and damage redraw only when evidence justifies additional maintenance cost.
+
+Integration evidence and remaining gaps: [Windows implementation report](evidence/m8-integration.md).
 
 ## Completion ledger
 
@@ -394,6 +411,6 @@ add a row here rather than duplicating status in another plan.
 | M1A-02–M1A-14 | [Headless runtime and three-platform CPU evidence](evidence/m1a-runtime.md) | Windows x64, Linux x64 and macOS ARM64 contracts, harness, example and independent consumer passed; no M1B/native certification |
 | M1B-01–M1B-15 | [M1B native shell and analytic contracts](evidence/m1b-native-shell.md) | Windows 11 x64 verified: geometry, layout, hit-test, input, focus, scroll, semantics, view-platform, inspectable app smoke, and 64 passing tests; no desktop input seizing; Linux/macOS frame certification open |
 
-All later entries remain unchecked until their concrete deliverables and applicable
+Entries remain unchecked until their concrete deliverables and applicable
 verification exist. A milestone is complete only when its required implementation
 and evidence items are complete; a percentage of checked boxes is not a release gate.

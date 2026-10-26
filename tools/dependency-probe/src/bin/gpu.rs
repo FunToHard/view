@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("owned-sequence-fixture"),
         source: wgpu::ShaderSource::Wgsl(
-            include_str!("../../../../tests/fixtures/shaders/sequence.wgsl").into(),
+            include_str!("../../fixtures/shaders/sequence.wgsl").into(),
         ),
     });
     let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {

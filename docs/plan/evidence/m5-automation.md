@@ -48,6 +48,29 @@ remain uncovered. These dependent gates must not be checked as passed.
 
 ## Verification
 
+2026-10-26 extension: the selected en-US desktop passed Home/Shift+End,
+Ctrl+Home/Ctrl+Shift+End, Delete and Ctrl+Backspace assertions, plus rejection of
+the closed owned IDE target. Two consecutive successful receipts are retained in
+`target/verification/m8-desktop-pass-1.txt` and `m8-desktop-pass-2.txt`.
+The native injector now sets extended-key flags on both down and up for navigation
+keys; previously Windows could deliver keypad variants. Key/modifier observations
+are capped and confined to the explicit test fixture.
+
+The extended selected-desktop run passed physical PageDown/Shift+PageDown/
+PageUp/Shift+PageUp over forty hard lines in a 66-logical-pixel content viewport.
+Independent caret/anchor byte expectations were 39, 72, 39 and 6; observed vertical
+scroll offsets were 22, 88, 66 and 0. The same run switched foreground between
+owned windows while Shift was held: the worker cancelled, the OS key-down/key-up
+state was observed, and blur cleared controlled preedit without committing it.
+Dropping a second session released its held Shift; a hidden owned target rejected
+before injection. Receipt: `target/verification/m8-desktop-lifecycle.log`.
+The final geometry/reveal implementation rerun also passed, exit 0:
+`target/verification/m8-desktop-complete.log` and
+`windows-matrix/final-desktop-supplement.json` preserve this result alongside
+earlier failure receipts.
+This covers orderly owner-drop interruption, not forced process termination or
+elevated/secure desktops. Controlled preedit is not a native Japanese IME test.
+
 Focused core/automation/tooling tests, all-feature Clippy and independent automation
 consumer checks passed during implementation. The actual rmcp process test covers
 negotiation, discovery, edit, duplicate request, stale undo, successful undo and
@@ -81,7 +104,8 @@ Local links and balanced fences in the eight affected M5 documents passed, as di
 `git diff --check`. Generated evidence remains local and is not committed or uploaded.
 
 Open acceptance items remain explicit: M5-13 needs the full native movement/mixed-DPI
-matrix; M5-14 needs the remaining page-navigation/control flows; M5-15 needs an
+matrix; M5-14 has passed the named proof keyboard flows, with broader control
+certification tracked under M5-18; M5-15 needs an
 installed and selected Japanese IME; M5-17 needs complete native closure/interruption
 coverage; M5-18 needs real native AT and full standard-control profile observations.
 The current mock cleanup and headless geometry tests do not substitute for those runs.

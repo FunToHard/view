@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "path": "fixtures/shaders/sequence.wgsl",
+      "source": "tests/fixtures/shaders/sequence.wgsl",
+      "sha256": "3577f61cf72f7ea2ed1ed4d9fd5cdeef89238359b7ef7ebc2b80938d8a62a00c"
+    },
+    {
+      "path": "fixtures/text/graphemes.txt",
+      "source": "tests/fixtures/text/graphemes.txt",
+      "sha256": "0ec3cdc40b050e85d8bf8f32c3a2d49c2ffdfd3e6a8593fb564f685679eb1b87"
+    }
+  ]
+}

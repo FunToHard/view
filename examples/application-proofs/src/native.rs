@@ -3,6 +3,8 @@ use crate::{
     Action, Proofs, Result,
     presentation::{Presentation, wait},
 };
+#[cfg(all(feature = "desktop-test", windows))]
+use view::text::EditorSession;
 use view::{render::*, *};
 use view_platform::{
     AppConfig, PlatformApp, PlatformError, PlatformHandler, PlatformShell, PlatformWindow,
@@ -24,6 +26,7 @@ struct App {
     source_service: crate::service::SourceService,
     drag: Option<viewport::DragSession<f32>>,
     clipboard: MemoryClipboard,
+    native_focus: std::collections::HashSet<WindowId>,
     #[cfg(all(feature = "desktop-test", windows))]
     desktop: Option<DesktopTest>,
 }
@@ -41,6 +44,51 @@ impl text::Clipboard for MemoryClipboard {
 fn platform(e: impl std::fmt::Display) -> PlatformError {
     PlatformError::EventLoop(e.to_string())
 }
+fn set_native_focus(
+    proofs: &mut Proofs,
+    native_focus: &mut std::collections::HashSet<WindowId>,
+    id: WindowId,
+    focused: bool,
+) -> Result<()> {
+    if focused {
+        native_focus.insert(id);
+    } else {
+        native_focus.remove(&id);
+    }
+    if let Some(field) = proofs.editing_node(id) {
+        let field_focused = focused && proofs.ui.focused(id)? == Some(field);
+        proofs
+            .ui
+            .update(field, Dirty::PAINT, |field: &mut controls::TextField| {
+                field.set_focused(field_focused, 0)
+            })?;
+    }
+    Ok(())
+}
+fn active_editing_field(
+    proofs: &Proofs,
+    native_focus: &std::collections::HashSet<WindowId>,
+    id: WindowId,
+) -> Option<NodeId> {
+    native_focus
+        .contains(&id)
+        .then(|| proofs.editing_node(id))
+        .flatten()
+}
+fn edit_active_field<R>(
+    proofs: &mut Proofs,
+    native_focus: &std::collections::HashSet<WindowId>,
+    id: WindowId,
+    edit: impl FnOnce(&mut controls::TextField) -> std::result::Result<R, text::TextError>,
+) -> Result<Option<R>> {
+    let Some(field) = active_editing_field(proofs, native_focus, id) else {
+        return Ok(None);
+    };
+    if proofs.ui.focused(id)? != Some(field) {
+        return Ok(None);
+    }
+    Ok(Some(proofs.ui.update(field, Dirty::PAINT, edit)??))
+}
 impl App {
     fn draw(&mut self, shell: &PlatformShell, id: WindowId) -> Result<()> {
         let Some(window) = shell.get_window(id) else {
@@ -55,6 +103,7 @@ impl App {
             .iter_mut()
             .find(|w| w.id == id)
             .ok_or("missing renderer")?;
+        gpu.paint.native_focus = Some(self.native_focus.contains(&id));
         let snapshot = gpu.paint.paint(
             &mut self.proofs,
             &gpu.context,
@@ -88,9 +137,10 @@ impl App {
         id: WindowId,
         event: PlatformWindowEvent,
     ) -> Result<()> {
-        let editing = self.proofs.editing_node(id);
+        let editing = active_editing_field(&self.proofs, &self.native_focus, id);
         match event {
             PlatformWindowEvent::CloseRequested => {
+                self.native_focus.remove(&id);
                 self.windows.retain(|w| w.id != id);
                 shell.close_window(id)?;
                 self.proofs.ui.close_window(id)?;
@@ -135,7 +185,9 @@ impl App {
                             .ui
                             .scroll_by(*target, LogicalPoint::new(-delta_x, -delta_y))?;
                         #[cfg(all(feature = "desktop-test", windows))]
-                        if let Some(test) = &mut self.desktop {
+                        if let Some(test) = &mut self.desktop
+                            && test.log.len() < 4096
+                        {
                             test.log.push(format!("wheel received at {:?}, target {:?}, delta=({delta_x},{delta_y}), consumed={consumed:?}", e.position, target));
                         }
                         let _ = consumed;
@@ -148,12 +200,25 @@ impl App {
                     && self.proofs.ui.focused(id)? == Some(field)
                 {
                     let bounds = self.proofs.ui.global_rect(field)?;
+                    let scale = shell
+                        .get_window(id)
+                        .ok_or("native target closed")?
+                        .dpi()
+                        .scale_factor;
+                    let paint = &mut self
+                        .windows
+                        .iter_mut()
+                        .find(|window| window.id == id)
+                        .ok_or("missing renderer")?
+                        .paint;
                     self.proofs.ui.update(
                         field,
                         Dirty::PAINT,
-                        |field: &mut controls::TextField| {
+                        |field: &mut controls::TextField| -> std::result::Result<_, controls::ControlError> {
                             field.set_focused(true, e.timestamp);
-                            field.pointer(e, bounds)
+                            let content =
+                                paint.prepare_pointer(field, bounds, scale, e.timestamp)?;
+                            Ok(field.pointer(e, content)?)
                         },
                     )??;
                 }
@@ -206,20 +271,68 @@ impl App {
                 }
             }
             PlatformWindowEvent::Keyboard(e) => {
+                #[cfg(all(feature = "desktop-test", windows))]
+                if let Some(test) = &mut self.desktop
+                    && test.log.len() < 4096
+                {
+                    test.log.push(format!(
+                        "key window={id:?} stage={} event={e:?}",
+                        test.stage
+                    ));
+                }
+                if !self.native_focus.contains(&id) {
+                    return Ok(());
+                }
                 self.proofs
                     .ui
                     .route_keyboard(id, e.clone(), &mut self.proofs.document)?;
-                if let Some(field) = editing
+                if e.phase != KeyPhase::Up
+                    && matches!(
+                        e.key,
+                        Key::Named(
+                            NamedKey::ArrowLeft
+                                | NamedKey::ArrowRight
+                                | NamedKey::ArrowUp
+                                | NamedKey::ArrowDown
+                                | NamedKey::PageUp
+                                | NamedKey::PageDown
+                        )
+                    )
+                    && let Some(field) = active_editing_field(&self.proofs, &self.native_focus, id)
                     && self.proofs.ui.focused(id)? == Some(field)
                 {
+                    let bounds = self.proofs.ui.global_rect(field)?;
+                    let scale = shell
+                        .get_window(id)
+                        .ok_or("native target closed")?
+                        .dpi()
+                        .scale_factor;
+                    let paint = &mut self
+                        .windows
+                        .iter_mut()
+                        .find(|window| window.id == id)
+                        .ok_or("missing renderer")?
+                        .paint;
                     self.proofs.ui.update(
                         field,
-                        Dirty::PAINT,
+                        Dirty::NONE,
                         |field: &mut controls::TextField| {
                             field.set_focused(true, e.timestamp);
-                            field.key(&e, &mut self.clipboard)
+                            paint.prepare_navigation(field, bounds, scale, &e)
                         },
                     )??;
+                }
+                if edit_active_field(
+                    &mut self.proofs,
+                    &self.native_focus,
+                    id,
+                    |field: &mut controls::TextField| {
+                        field.set_focused(true, e.timestamp);
+                        field.key(&e, &mut self.clipboard)
+                    },
+                )?
+                .is_some()
+                {
                     self.proofs.edited(id)?;
                 }
                 if e.phase == KeyPhase::Down {
@@ -270,21 +383,24 @@ impl App {
                 }
             }
             PlatformWindowEvent::TextInput(text) => {
-                if let Some(field) = editing
-                    && self.proofs.ui.focused(id)? == Some(field)
+                if edit_active_field(
+                    &mut self.proofs,
+                    &self.native_focus,
+                    id,
+                    |field: &mut controls::TextField| field.insert_text(&text, 0),
+                )?
+                .is_some()
                 {
-                    self.proofs.ui.update(
-                        field,
-                        Dirty::PAINT,
-                        |field: &mut controls::TextField| field.insert_text(&text, 0),
-                    )??;
                     self.proofs.edited(id)?;
                 }
             }
-            PlatformWindowEvent::Focused(false) => {
-                self.proofs.ui.cancel_pointer(id)?;
-                self.drag = None;
-                self.proofs.set_preview(None)?;
+            PlatformWindowEvent::Focused(focused) => {
+                set_native_focus(&mut self.proofs, &mut self.native_focus, id, focused)?;
+                if !focused {
+                    self.proofs.ui.cancel_pointer(id)?;
+                    self.drag = None;
+                    self.proofs.set_preview(None)?;
+                }
             }
             PlatformWindowEvent::Ime(event) => {
                 #[cfg(all(feature = "desktop-test", windows))]
@@ -299,21 +415,21 @@ impl App {
                         _ => {}
                     }
                 }
-                if let Some(field) = editing
-                    && self.proofs.ui.focused(id)? == Some(field)
+                if edit_active_field(
+                    &mut self.proofs,
+                    &self.native_focus,
+                    id,
+                    |field: &mut controls::TextField| match event {
+                        view_platform::ImeEvent::Preedit(text, cursor) => {
+                            field.preedit(&text, cursor)
+                        }
+                        view_platform::ImeEvent::Commit(text) => field.commit_ime(&text, 0),
+                        view_platform::ImeEvent::Disabled => field.preedit("", None),
+                        view_platform::ImeEvent::Enabled => Ok(()),
+                    },
+                )?
+                .is_some()
                 {
-                    self.proofs.ui.update(
-                        field,
-                        Dirty::PAINT,
-                        |field: &mut controls::TextField| match event {
-                            view_platform::ImeEvent::Preedit(text, cursor) => {
-                                field.preedit(&text, cursor)
-                            }
-                            view_platform::ImeEvent::Commit(text) => field.commit_ime(&text, 0),
-                            view_platform::ImeEvent::Disabled => field.preedit("", None),
-                            view_platform::ImeEvent::Enabled => Ok(()),
-                        },
-                    )??;
                     self.proofs.edited(id)?;
                 }
             }
@@ -455,6 +571,7 @@ fn run_config(hidden: bool, desktop_test: bool, japanese: bool) -> Result<()> {
             source_service: Default::default(),
             drag: None,
             clipboard: Default::default(),
+            native_focus: Default::default(),
             #[cfg(all(feature = "desktop-test", windows))]
             desktop: desktop_test.then(|| DesktopTest::new(japanese)),
         },
@@ -481,16 +598,19 @@ struct DesktopTest {
     preedits: usize,
     commits: usize,
     modal: Option<NodeId>,
+    held_session: Option<view_automation::desktop::DesktopSession>,
 }
 #[cfg(all(feature = "desktop-test", windows))]
 impl DesktopTest {
     fn new(japanese: bool) -> Self {
-        Self {stage:0,next:std::time::Instant::now(),started:std::time::Instant::now(),focus:None,source:String::new(),log:vec!["M5 Windows native input; explicit selected desktop; F12 stops; actual event-driven application assertions".into()],passed:false,last_pointer:None,japanese,preedits:0,commits:0,modal:None}
+        Self {stage:0,next:std::time::Instant::now(),started:std::time::Instant::now(),focus:None,source:String::new(),log:vec!["M5 Windows native input; explicit selected desktop; F12 stops; actual event-driven application assertions".into()],passed:false,last_pointer:None,japanese,preedits:0,commits:0,modal:None,held_session:None}
     }
 }
 #[cfg(all(feature = "desktop-test", windows))]
 impl Drop for DesktopTest {
     fn drop(&mut self) {
+        // Join cleanup before recording a failure, including an interrupted fixture.
+        drop(self.held_session.take());
         let _ = std::fs::create_dir_all("target/verification");
         self.log.push(format!(
             "result={} stage={} elapsed={:?}",
@@ -509,6 +629,40 @@ impl Drop for DesktopTest {
 }
 #[cfg(all(feature = "desktop-test", windows))]
 impl App {
+    fn assert_native_page(&self, anchor: usize, focus: usize, scroll: f32) -> Result<()> {
+        let source = self
+            .proofs
+            .editing_node(self.proofs.detached)
+            .ok_or("source")?;
+        let field = self.proofs.ui.state::<controls::TextField>(source)?;
+        let selection = field.snapshot().selection;
+        let expected_text = ["abcdefghij"; 40].join("\n");
+        if selection.anchor != text::TextIndex(anchor)
+            || selection.focus != text::TextIndex(focus)
+            || (field.editor().scroll_offset().y - scroll).abs() > 0.01
+            || self.proofs.document.source != expected_text
+        {
+            return Err(format!("native Page expected anchor={anchor},focus={focus},scroll={scroll}; actual selection={selection:?},scroll={:?}", field.editor().scroll_offset()).into());
+        }
+        Ok(())
+    }
+    fn hold_test_shift(
+        &self,
+        shell: &PlatformShell,
+        id: WindowId,
+    ) -> Result<view_automation::desktop::DesktopSession> {
+        use view_automation::desktop::{DesktopSession, Event, Held};
+        let raw = shell
+            .get_window(id)
+            .ok_or("native target closed")?
+            .shared_window();
+        // Selection rejects pre-existing human modifiers/buttons; send checks
+        // Shift again before taking ownership. The watchdog/F12 remain active.
+        let driver = view_platform::desktop_input::WindowsDriver::select(raw, true)?;
+        let session = DesktopSession::start(driver, true, std::time::Duration::from_secs(3))?;
+        session.send(Event::Down(Held::Key(0x10)))?;
+        Ok(session)
+    }
     fn native_group(
         &self,
         shell: &PlatformShell,
@@ -758,13 +912,35 @@ impl App {
                         )
                         .into());
                     }
-                    let mut input = chord(0x41);
-                    input.extend(tap(0x08));
+                    let mut input = tap(0x24); // Home
+                    input.extend([
+                        Event::Down(Held::Key(0x10)), // Shift
+                        Event::Down(Held::Key(0x23)), // End
+                        Event::Up(Held::Key(0x23)),
+                        Event::Up(Held::Key(0x10)),
+                    ]);
                     self.native_group(shell, self.proofs.store, None, input)?;
                 }
                 11 => {
+                    let selection = self
+                        .proofs
+                        .ui
+                        .state::<controls::TextField>(self.proofs.search)?
+                        .snapshot()
+                        .selection;
+                    if self.proofs.query != "a" || selection.range() != (0..1) {
+                        return Err(format!(
+                            "physical Home/Shift+End expected selected range 0..1; query={:?}, range={:?}",
+                            self.proofs.query,
+                            selection.range()
+                        )
+                        .into());
+                    }
+                    self.native_group(shell, self.proofs.store, None, tap(0x2e))?; // Delete
+                }
+                12 => {
                     if !self.proofs.query.is_empty() {
-                        return Err("selection/backspace did not clear text".into());
+                        return Err("physical Delete did not clear the selected text".into());
                     }
                     let mut input = vec![];
                     for unit in "native".encode_utf16() {
@@ -774,16 +950,62 @@ impl App {
                     input.extend(tap(0x0d));
                     self.native_group(shell, self.proofs.store, None, input)?;
                 }
-                12 => {
+                13 => {
                     if self.proofs.query != "native"
                         || self.proofs.results.value().is_none_or(|v| v.len() != 100)
                     {
                         return Err("Unicode insertion/async catalog not observed".into());
                     }
+                    let mut input = chord(0x24); // Ctrl+Home
+                    input.extend([
+                        Event::Down(Held::Key(0x11)), // Ctrl
+                        Event::Down(Held::Key(0x10)), // Shift
+                        Event::Down(Held::Key(0x23)), // End
+                        Event::Up(Held::Key(0x23)),
+                        Event::Up(Held::Key(0x10)),
+                        Event::Up(Held::Key(0x11)),
+                    ]);
+                    self.native_group(shell, self.proofs.store, None, input)?;
+                }
+                14 => {
+                    let selection = self
+                        .proofs
+                        .ui
+                        .state::<controls::TextField>(self.proofs.search)?
+                        .snapshot()
+                        .selection;
+                    if self.proofs.query != "native" || selection.range() != (0..6) {
+                        return Err(format!(
+                            "physical Ctrl+Home/Ctrl+Shift+End expected range 0..6; query={:?}, range={:?}",
+                            self.proofs.query,
+                            selection.range()
+                        )
+                        .into());
+                    }
+                    self.native_group(shell, self.proofs.store, None, chord(0x08))?; // Ctrl+Backspace
+                }
+                15 => {
+                    if !self.proofs.query.is_empty() {
+                        return Err("Ctrl+Backspace did not delete the selected word".into());
+                    }
+                    let mut input = vec![];
+                    for unit in "native".encode_utf16() {
+                        input.push(Event::Down(Held::Unicode(unit)));
+                        input.push(Event::Up(Held::Unicode(unit)));
+                    }
+                    input.extend(tap(0x0d));
+                    self.native_group(shell, self.proofs.store, None, input)?;
+                }
+                16 => {
+                    if self.proofs.query != "native"
+                        || self.proofs.results.value().is_none_or(|v| v.len() != 100)
+                    {
+                        return Err("re-entered query/async catalog not observed".into());
+                    }
                     let p = self.proofs.ui.global_rect(self.proofs.catalog)?.center();
                     self.native_group(shell, self.proofs.store, Some(p), vec![])?;
                 }
-                13 => {
+                17 => {
                     let expected = self.proofs.ui.global_rect(self.proofs.catalog)?.center();
                     if test.last_pointer.is_none_or(|(id, p)| {
                         id != self.proofs.store
@@ -802,7 +1024,7 @@ impl App {
                         }],
                     )?;
                 }
-                14 => {
+                18 => {
                     let offset = self
                         .proofs
                         .ui
@@ -821,7 +1043,7 @@ impl App {
                         .shared_window()
                         .focus_window();
                 }
-                15 => {
+                19 => {
                     let source = self
                         .proofs
                         .editing_node(self.proofs.detached)
@@ -833,18 +1055,18 @@ impl App {
                         click(),
                     )?;
                 }
-                16 => {
+                20 => {
                     let mut input = chord(0x41);
                     input.extend(tap(0x58));
                     self.native_group(shell, self.proofs.detached, None, input)?;
                 }
-                17 => {
+                21 => {
                     if self.proofs.document.source != "x" {
                         return Err("IDE physical selection/edit missing".into());
                     }
                     self.native_group(shell, self.proofs.detached, None, chord(0x5a))?;
                 }
-                18 => {
+                22 => {
                     if self.proofs.document.source != test.source {
                         return Err("IDE physical undo did not restore source".into());
                     }
@@ -873,10 +1095,10 @@ impl App {
                     test.modal = Some(modal);
                     test.log.push("setup: mounted test modal through public API; subsequent Tab and Escape are physical".into());
                 }
-                19 => {
+                23 => {
                     self.native_group(shell, self.proofs.detached, None, tap(0x09))?;
                 }
-                20 => {
+                24 => {
                     let focus = self
                         .proofs
                         .ui
@@ -891,16 +1113,236 @@ impl App {
                     }
                     self.native_group(shell, self.proofs.detached, None, tap(0x1b))?;
                 }
-                21 => {
+                25 => {
                     if self.proofs.ui.focused(self.proofs.detached)? != test.focus {
                         return Err("Escape did not restore pre-modal focus".into());
                     }
                     self.proofs
                         .ui
                         .unmount(test.modal.take().ok_or("modal missing")?)?;
+                    let source = self
+                        .proofs
+                        .editing_node(self.proofs.detached)
+                        .ok_or("source")?;
+                    let lines = ["abcdefghij"; 40].join("\n");
+                    self.proofs.ui.update(source, Dirty::PAINT, |field: &mut controls::TextField| -> std::result::Result<(), text::TextError> {
+                        field.external(field.snapshot().text.revision(), &lines, text::ExternalPolicy::ResetSelection)?;
+                        let revision = field.snapshot().text.revision();
+                        field.editor_mut().select(revision, text::Selection::caret(text::TextIndex(6)))?;
+                        Ok(())
+                    })??;
+                    // Fixed public fixture geometry: default 22px line height,
+                    // 6px padding, hence exactly three visible hard lines.
+                    self.proofs
+                        .ui
+                        .set_layout(source, LogicalRect::from_xywh(20., 70., 350., 78.))?;
+                    self.proofs.edited(self.proofs.detached)?;
+                    self.proofs.ui.flush(&mut self.proofs.document)?;
+                    self.draw(shell, self.proofs.detached)?;
+                    test.log.push("setup: forty 10-byte hard lines, caret byte 6, three-line native text viewport; following Page keys are physical".into());
+                    self.native_group(shell, self.proofs.detached, None, tap(0x22))?;
+                }
+                26 => {
+                    self.assert_native_page(39, 39, 22.)?;
+                    self.native_group(
+                        shell,
+                        self.proofs.detached,
+                        None,
+                        vec![
+                            Event::Down(Held::Key(0x10)),
+                            Event::Down(Held::Key(0x22)),
+                            Event::Up(Held::Key(0x22)),
+                            Event::Up(Held::Key(0x10)),
+                        ],
+                    )?;
+                }
+                27 => {
+                    self.assert_native_page(39, 72, 88.)?;
+                    self.native_group(shell, self.proofs.detached, None, tap(0x21))?;
+                }
+                28 => {
+                    self.assert_native_page(39, 39, 66.)?;
+                    self.native_group(
+                        shell,
+                        self.proofs.detached,
+                        None,
+                        vec![
+                            Event::Down(Held::Key(0x10)),
+                            Event::Down(Held::Key(0x21)),
+                            Event::Up(Held::Key(0x21)),
+                            Event::Up(Held::Key(0x10)),
+                        ],
+                    )?;
+                }
+                29 => {
+                    self.assert_native_page(39, 6, 0.)?;
+                    test.log.push("PASS physical multiline PageDown/Shift+PageDown/PageUp/Shift+PageUp; exact caret/anchor bytes 39,72,39,6 and scroll offsets 22,88,66,0 observed".into());
+                    self.windows
+                        .retain(|window| window.id != self.proofs.detached);
+                    shell.close_window(self.proofs.detached)?;
+                    self.proofs.ui.close_window(self.proofs.detached)?;
+                    test.log
+                        .push("setup: closed the owned IDE target after modal cleanup".into());
+                }
+                30 => {
+                    if shell.get_window(self.proofs.detached).is_some() {
+                        return Err("closed native target remains registered".into());
+                    }
+                    match self.native_group(shell, self.proofs.detached, None, vec![]) {
+                        Err(error) if error.to_string() == "native target closed" => {}
+                        Err(error) => {
+                            return Err(format!(
+                                "closed native target failed for an unexpected reason: {error}"
+                            )
+                            .into());
+                        }
+                        Ok(_) => {
+                            return Err("input helper accepted a closed native target".into());
+                        }
+                    }
+                    test.log.push("PASS pointer selection/gizmo/undo, en-US arrows/Tab/reverse Tab/Escape/Home/End/Shift selection/Delete/Ctrl+Backspace, Unicode insertion, worker catalog, physical wheel virtualization, IDE edit/undo, modal Tab containment/Escape restoration, closed-target rejection".into());
+                    shell
+                        .get_window(self.proofs.store)
+                        .ok_or("store")?
+                        .shared_window()
+                        .focus_window();
+                }
+                31 => {
+                    self.native_group(
+                        shell,
+                        self.proofs.store,
+                        Some(self.proofs.ui.global_rect(self.proofs.search)?.center()),
+                        click(),
+                    )?;
+                }
+                32 => {
+                    let field = self
+                        .proofs
+                        .ui
+                        .state::<controls::TextField>(self.proofs.search)?;
+                    if !field.focused()
+                        || self.proofs.ui.focused(self.proofs.store)? != Some(self.proofs.search)
+                    {
+                        return Err("store field was not focused before blur fixture".into());
+                    }
+                    // Controlled preedit setup exercises native blur delivery; it
+                    // does not certify an installed IME's candidate/commit path.
+                    self.proofs.ui.update(
+                        self.proofs.search,
+                        Dirty::PAINT,
+                        |field: &mut controls::TextField| field.preedit("pending", Some((7, 7))),
+                    )??;
+                    test.held_session = Some(self.hold_test_shift(shell, self.proofs.store)?);
+                    test.log.push("setup: controlled preedit plus runner-owned Shift; 3s watchdog and F12 active".into());
+                }
+                33 => {
+                    if !view_platform::desktop_input::WindowsDriver::key_is_down(0x10)? {
+                        return Err(
+                            "runner-owned Shift down was not observed before focus loss".into()
+                        );
+                    }
+                    if !shell
+                        .get_window(self.proofs.store)
+                        .ok_or("store")?
+                        .shared_window()
+                        .has_focus()
+                    {
+                        return Err(
+                            "unexpected foreground loss before owned-window transition".into()
+                        );
+                    }
+                    shell
+                        .get_window(self.proofs.editor)
+                        .ok_or("editor")?
+                        .shared_window()
+                        .focus_window();
+                }
+                34 => {
+                    let outcome = test
+                        .held_session
+                        .take()
+                        .ok_or("held-input session missing")?
+                        .finish();
+                    match outcome {
+                        Err(error) if error.code == view_automation::Code::Cancelled => {}
+                        Err(error) => {
+                            return Err(
+                                format!("unexpected foreground cancellation: {error}").into()
+                            );
+                        }
+                        Ok(()) => {
+                            return Err("foreground loss did not cancel the desktop worker".into());
+                        }
+                    }
+                    if view_platform::desktop_input::WindowsDriver::key_is_down(0x10)? {
+                        return Err(
+                            "runner-owned Shift remained down after focus-loss cleanup".into()
+                        );
+                    }
+                    let field = self
+                        .proofs
+                        .ui
+                        .state::<controls::TextField>(self.proofs.search)?;
+                    if field.focused()
+                        || field.snapshot().composition.is_some()
+                        || self.proofs.query != "native"
+                    {
+                        return Err("native blur failed to clear field focus/composition without committing preedit".into());
+                    }
+                    test.log.push("PASS app-owned foreground loss cancelled worker; OS Shift down/up observed; native blur cleared controlled preedit without committing it".into());
+                    test.held_session = Some(self.hold_test_shift(shell, self.proofs.editor)?);
+                }
+                35 => {
+                    if !view_platform::desktop_input::WindowsDriver::key_is_down(0x10)? {
+                        return Err(
+                            "runner-owned Shift down was not observed before owner drop".into()
+                        );
+                    }
+                    // Interrupt before matching Up; Drop joins cleanup and only
+                    // releases the held set owned by this session.
+                    drop(
+                        test.held_session
+                            .take()
+                            .ok_or("held-input session missing")?,
+                    );
+                }
+                36 => {
+                    if view_platform::desktop_input::WindowsDriver::key_is_down(0x10)? {
+                        return Err(
+                            "runner-owned Shift remained down after interrupted owner drop".into(),
+                        );
+                    }
+                    test.log.push("PASS interrupted session owner drop; OS runner-owned Shift release observed".into());
+                    shell
+                        .get_window(self.proofs.editor)
+                        .ok_or("editor")?
+                        .shared_window()
+                        .set_visible(false);
+                }
+                37 => {
+                    let raw = shell
+                        .get_window(self.proofs.editor)
+                        .ok_or("editor")?
+                        .shared_window();
+                    if raw.is_visible() != Some(false) {
+                        return Err("hidden-target setup was not observed".into());
+                    }
+                    match view_platform::desktop_input::WindowsDriver::select(raw, true) {
+                        Err(error) if error.code == view_automation::Code::Cancelled => {}
+                        Err(error) => {
+                            return Err(
+                                format!("unexpected hidden-target rejection: {error}").into()
+                            );
+                        }
+                        Ok(_) => {
+                            return Err("hidden native target accepted desktop ownership".into());
+                        }
+                    }
+                    test.log.push("PASS inaccessible hidden app-owned target rejected before any input insertion; elevated/secure-desktop coverage remains unavailable".into());
                     test.passed = true;
-                    test.log.push("PASS pointer selection/gizmo/undo, en-US arrows/Tab/reverse Tab/Escape/selection/deletion, Unicode insertion, worker catalog, physical wheel virtualization, IDE edit/undo, modal Tab containment/Escape restoration".into());
-                    println!("{}", test.log.last().expect("log"));
+                    for line in test.log.iter().filter(|line| line.starts_with("PASS")) {
+                        println!("{line}");
+                    }
                     events.exit();
                 }
                 _ => {}
@@ -914,5 +1356,328 @@ impl App {
         test.next = std::time::Instant::now() + std::time::Duration::from_millis(500);
         self.desktop = Some(test);
         result
+    }
+}
+
+#[cfg(test)]
+mod focus_tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn queued_edit_pointer_refresh_uses_content_origin_without_paint() -> Result<()> {
+        use crate::presentation::prepare_text_pointer;
+        let mut fonts = text::CosmicBackend::from_fonts(
+            [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+            8,
+        )?;
+        let mut area = controls::TextArea::new("pointer", "old")?;
+        area.0.set_focused(true, 0);
+        let bounds = LogicalRect::from_xywh(20., 70., 350., 78.);
+        prepare_text_pointer(&mut fonts, &mut area.0, bounds, ScaleFactor::ONE, 0)?;
+        area.0.editor_mut().select_all()?;
+        area.0.insert_text("replacement before paint", 1)?;
+        let content = prepare_text_pointer(&mut fonts, &mut area.0, bounds, ScaleFactor::ONE, 2)?;
+        let padding = controls::Style::default().padding;
+        assert_eq!(
+            content.origin,
+            bounds.origin + LogicalPoint::new(padding, padding)
+        );
+        area.0.pointer(
+            PointerEvent {
+                phase: PointerPhase::Down,
+                position: content.origin + LogicalPoint::new(0., 1.),
+                button: Some(PointerButton::Primary),
+                modifiers: Modifiers::default(),
+                timestamp: 2,
+            },
+            content,
+        )?;
+        assert_eq!(
+            area.0.snapshot().selection,
+            text::Selection::caret(text::TextIndex(0))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn queued_insert_then_geometric_navigation_refreshes_layout_without_paint() -> Result<()> {
+        use crate::presentation::prepare_text_navigation;
+        use text::EditorSession;
+        let mut fonts = text::CosmicBackend::from_fonts(
+            [
+                include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec(),
+                include_bytes!("../fixtures/fonts/NotoSansHebrew.ttf").to_vec(),
+            ],
+            8,
+        )?;
+        let bounds = LogicalRect::from_xywh(20., 70., 350., 78.);
+        for (key, inserted, initial, expected) in [
+            (NamedKey::ArrowDown, ["abcdefghij"; 40].join("\n"), 6, 17),
+            (NamedKey::ArrowUp, ["abcdefghij"; 40].join("\n"), 17, 6),
+            (NamedKey::PageDown, ["abcdefghij"; 40].join("\n"), 6, 39),
+            (NamedKey::PageUp, ["abcdefghij"; 40].join("\n"), 39, 6),
+            (NamedKey::ArrowLeft, "אבג".into(), 2, 4),
+            (NamedKey::ArrowRight, "אבג".into(), 2, 0),
+        ] {
+            let mut area = controls::TextArea::new("queued navigation", "old")?;
+            area.0.set_focused(true, 0);
+            let event = KeyboardEvent {
+                key: Key::Named(key),
+                phase: KeyPhase::Down,
+                modifiers: Modifiers::default(),
+                timestamp: 1,
+            };
+            assert!(prepare_text_navigation(
+                &mut fonts,
+                &mut area.0,
+                bounds,
+                ScaleFactor::ONE,
+                &event
+            )?);
+            area.0.editor_mut().select_all()?;
+            area.0.insert_text(&inserted, 2)?;
+            let revision = area.0.snapshot().text.revision();
+            area.0
+                .editor_mut()
+                .select(revision, text::Selection::caret(text::TextIndex(initial)))?;
+            // The old shaped revision is still installed; no paint/prepare has
+            // happened since insertion. Exercise the same CPU helper as native input.
+            assert!(prepare_text_navigation(
+                &mut fonts,
+                &mut area.0,
+                bounds,
+                ScaleFactor::ONE,
+                &event
+            )?);
+            assert_eq!(
+                area.0.key(&event, &mut MemoryClipboard::default())?,
+                controls::TextResponse::Handled
+            );
+            assert_eq!(
+                area.0.snapshot().selection,
+                text::Selection::caret(text::TextIndex(expected)),
+                "{key:?}"
+            );
+            assert_eq!(area.0.snapshot().text.text(), inserted);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn navigation_preparation_preserves_shortcut_and_composition_policy() -> Result<()> {
+        use crate::presentation::prepare_text_navigation;
+        let mut fonts = text::CosmicBackend::from_fonts(
+            [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+            8,
+        )?;
+        let bounds = LogicalRect::from_xywh(20., 70., 350., 78.);
+        let mut area = controls::TextArea::new("navigation policies", "a\nb\nc")?;
+        area.0.set_focused(true, 0);
+        let original = area.0.snapshot().selection;
+        for modifiers in [
+            Modifiers {
+                ctrl: true,
+                ..Default::default()
+            },
+            Modifiers {
+                alt: true,
+                ..Default::default()
+            },
+            Modifiers {
+                meta: true,
+                ..Default::default()
+            },
+        ] {
+            let event = KeyboardEvent {
+                key: Key::Named(NamedKey::PageDown),
+                phase: KeyPhase::Down,
+                modifiers,
+                timestamp: 1,
+            };
+            assert!(!prepare_text_navigation(
+                &mut fonts,
+                &mut area.0,
+                bounds,
+                ScaleFactor::ONE,
+                &event
+            )?);
+            assert_eq!(
+                area.0.key(&event, &mut MemoryClipboard::default())?,
+                controls::TextResponse::Ignored
+            );
+            assert_eq!(area.0.snapshot().selection, original);
+        }
+        area.0.preedit("pending", Some((7, 7)))?;
+        let event = KeyboardEvent {
+            key: Key::Named(NamedKey::ArrowDown),
+            phase: KeyPhase::Down,
+            modifiers: Modifiers::default(),
+            timestamp: 2,
+        };
+        assert!(!prepare_text_navigation(
+            &mut fonts,
+            &mut area.0,
+            bounds,
+            ScaleFactor::ONE,
+            &event
+        )?);
+        assert_eq!(
+            area.0.key(&event, &mut MemoryClipboard::default())?,
+            controls::TextResponse::Ignored
+        );
+        assert!(area.0.snapshot().composition.is_some());
+        assert_eq!(area.0.snapshot().selection, original);
+        Ok(())
+    }
+
+    #[test]
+    fn native_page_fixture_has_independent_byte_and_scroll_expectations() -> Result<()> {
+        use text::EditorSession;
+        let mut area =
+            controls::TextArea::new("native page fixture", &["abcdefghij"; 40].join("\n"))?;
+        area.0.set_focused(true, 0);
+        let revision = area.0.snapshot().text.revision();
+        area.0
+            .editor_mut()
+            .select(revision, text::Selection::caret(text::TextIndex(6)))?;
+        let mut fonts = text::CosmicBackend::from_fonts(
+            [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+            8,
+        )?;
+        let style = controls::Style {
+            font_family: "Noto Sans".into(),
+            ..Default::default()
+        };
+        let bounds = LogicalRect::from_xywh(20., 70., 350., 78.);
+        let mut clipboard = MemoryClipboard::default();
+        for (key, shift, anchor, focus, scroll) in [
+            (NamedKey::PageDown, false, 39, 39, 22.),
+            (NamedKey::PageDown, true, 39, 72, 88.),
+            (NamedKey::PageUp, false, 39, 39, 66.),
+            (NamedKey::PageUp, true, 39, 6, 0.),
+        ] {
+            area.0
+                .prepare(&mut fonts, &style, bounds, ScaleFactor::ONE, 0)?;
+            area.0.key(
+                &KeyboardEvent {
+                    key: Key::Named(key),
+                    phase: KeyPhase::Down,
+                    modifiers: Modifiers {
+                        shift,
+                        ..Default::default()
+                    },
+                    timestamp: 1,
+                },
+                &mut clipboard,
+            )?;
+            assert_eq!(area.0.snapshot().selection.anchor, text::TextIndex(anchor));
+            assert_eq!(area.0.snapshot().selection.focus, text::TextIndex(focus));
+            assert_eq!(area.0.editor().scroll_offset().y, scroll);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn native_blur_cancels_composition_and_rejects_late_edit_events_then_restores_focus()
+    -> Result<()> {
+        let mut proofs = Proofs::new()?;
+        let id = proofs.detached;
+        let source = proofs.editing_node(id).ok_or("source")?;
+        proofs.ui.set_focus(id, Some(source))?;
+        let mut focused = HashSet::new();
+        set_native_focus(&mut proofs, &mut focused, id, true)?;
+        let original = proofs.ui.state::<controls::TextField>(source)?.snapshot();
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| {
+                field.preedit("pending", Some((7, 7)))
+            })?
+            .is_some()
+        );
+        assert!(
+            proofs
+                .ui
+                .state::<controls::TextField>(source)?
+                .snapshot()
+                .composition
+                .is_some()
+        );
+        set_native_focus(&mut proofs, &mut focused, id, false)?;
+        let mut clipboard = MemoryClipboard::default();
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| {
+                field.set_focused(true, 1);
+                field.key(
+                    &KeyboardEvent {
+                        key: Key::Named(NamedKey::ArrowLeft),
+                        phase: KeyPhase::Up,
+                        modifiers: Modifiers::default(),
+                        timestamp: 1,
+                    },
+                    &mut clipboard,
+                )
+            })?
+            .is_none()
+        );
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| field
+                .preedit("late", Some((4, 4))))?
+            .is_none()
+        );
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| field
+                .commit_ime("late commit", 2))?
+            .is_none()
+        );
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| field
+                .insert_text("late text", 3))?
+            .is_none()
+        );
+        let field = proofs.ui.state::<controls::TextField>(source)?;
+        assert!(!field.focused());
+        assert!(field.snapshot().composition.is_none());
+        assert_eq!(field.snapshot().text, original.text);
+        assert_eq!(field.snapshot().selection, original.selection);
+        // Logical focus remains available for a later native activation.
+        assert_eq!(proofs.ui.focused(id)?, Some(source));
+        set_native_focus(&mut proofs, &mut focused, id, true)?;
+        assert!(proofs.ui.state::<controls::TextField>(source)?.focused());
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| field
+                .insert_text("accepted", 4))?
+            .is_some()
+        );
+        assert_ne!(
+            proofs
+                .ui
+                .state::<controls::TextField>(source)?
+                .snapshot()
+                .text,
+            original.text
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn native_activation_does_not_focus_an_editor_when_a_different_control_has_logical_focus()
+    -> Result<()> {
+        let mut proofs = Proofs::new()?;
+        let id = proofs.store;
+        proofs.ui.set_focus(id, None)?;
+        let mut focused = HashSet::new();
+        set_native_focus(&mut proofs, &mut focused, id, true)?;
+        assert!(
+            !proofs
+                .ui
+                .state::<controls::TextField>(proofs.search)?
+                .focused()
+        );
+        assert!(
+            edit_active_field(&mut proofs, &focused, id, |field| field
+                .commit_ime("late", 0))?
+            .is_none()
+        );
+        Ok(())
     }
 }

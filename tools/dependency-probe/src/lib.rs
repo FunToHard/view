@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn unicode_fixture_preserves_grapheme_boundaries() {
-        let fixture = include_str!("../../../tests/fixtures/text/graphemes.txt").trim_end();
+        let fixture = include_str!("../fixtures/text/graphemes.txt").trim_end();
         let clusters: Vec<_> = fixture.graphemes(true).collect();
         assert_eq!(clusters, ["e\u{301}", "👩‍💻", "🇮🇳"]);
         assert_eq!(clusters.concat(), fixture);

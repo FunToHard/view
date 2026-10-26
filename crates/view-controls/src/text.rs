@@ -34,7 +34,12 @@ pub struct TextField {
     focused: bool,
     dragging: bool,
     layout: Option<Arc<ShapedText>>,
+    viewport: Option<LogicalSize>,
     pub invalid: bool,
+    password: bool,
+    masked_layout: bool,
+    reveal_stamp: u64,
+    revealed_stamp: u64,
 }
 pub struct TextPresentation {
     pub layout: Arc<ShapedText>,
@@ -47,6 +52,20 @@ pub struct TextPresentation {
     pub placeholder: bool,
 }
 impl TextField {
+    pub(crate) fn mark_password(&mut self) {
+        self.password = true;
+    }
+    pub(crate) fn masked_display(&self) -> String {
+        mask_snapshot(&self.snapshot().text).text().to_owned()
+    }
+    fn mask_index(&self, snapshot: &TextSnapshot, index: TextIndex) -> TextIndex {
+        TextIndex(
+            grapheme_boundaries(snapshot.text())
+                .partition_point(|boundary| *boundary <= index.0)
+                .saturating_sub(1)
+                * '•'.len_utf8(),
+        )
+    }
     pub fn new(
         label: impl Into<String>,
         value: &str,
@@ -58,14 +77,28 @@ impl TextField {
             focused: false,
             dragging: false,
             layout: None,
+            viewport: None,
             invalid: false,
+            password: false,
+            masked_layout: false,
+            reveal_stamp: 0,
+            revealed_stamp: 0,
         })
     }
     pub fn editor(&self) -> &PlainEditor {
         &self.editor
     }
     pub fn editor_mut(&mut self) -> &mut PlainEditor {
+        self.request_reveal();
         &mut self.editor
+    }
+    fn request_reveal(&mut self) {
+        if self.reveal_stamp == u64::MAX {
+            self.reveal_stamp = 1;
+            self.revealed_stamp = 0;
+        } else {
+            self.reveal_stamp += 1;
+        }
     }
     pub fn snapshot(&self) -> EditorSnapshot {
         self.editor.snapshot()
@@ -74,8 +107,12 @@ impl TextField {
         self.focused
     }
     pub fn set_focused(&mut self, focused: bool, now: u64) {
+        let was_focused = self.focused;
         self.focused = focused && !self.editor.disabled();
         self.editor.set_focused(self.focused, now);
+        if self.focused && !was_focused {
+            self.request_reveal();
+        }
         if !self.focused {
             self.dragging = false;
         }
@@ -90,6 +127,7 @@ impl TextField {
     pub fn unmount(&mut self, now: u64) {
         self.set_focused(false, now);
         self.layout = None;
+        self.viewport = None;
     }
     pub fn external(
         &mut self,
@@ -97,10 +135,16 @@ impl TextField {
         value: &str,
         policy: ExternalPolicy,
     ) -> Result<ValueUpdate, TextError> {
-        self.editor.external_value(base, value, policy)
+        let update = self.editor.external_value(base, value, policy)?;
+        if update == ValueUpdate::Replaced {
+            self.request_reveal();
+        }
+        Ok(update)
     }
     pub fn insert_text(&mut self, text: &str, now: u64) -> Result<(), TextError> {
-        self.editor.insert(text, EditKind::Typing, now)
+        self.editor.insert(text, EditKind::Typing, now)?;
+        self.request_reveal();
+        Ok(())
     }
     pub fn preedit(&mut self, text: &str, cursor: Option<(usize, usize)>) -> Result<(), TextError> {
         if text.is_empty() {
@@ -116,10 +160,13 @@ impl TextField {
             },
         )?;
         self.editor.set_composition_cursor_visible(cursor.is_some());
+        self.request_reveal();
         Ok(())
     }
     pub fn commit_ime(&mut self, text: &str, now: u64) -> Result<(), TextError> {
-        self.editor.commit_composition(text, now)
+        self.editor.commit_composition(text, now)?;
+        self.request_reveal();
+        Ok(())
     }
     pub fn command(
         &mut self,
@@ -127,6 +174,9 @@ impl TextField {
         clipboard: &mut impl Clipboard,
         now: u64,
     ) -> Result<TextResponse, TextError> {
+        if self.password && matches!(command, TextCommand::Copy | TextCommand::Cut) {
+            return Err(TextError::Disabled);
+        }
         if self.editor.disabled() {
             return Err(TextError::Disabled);
         }
@@ -149,8 +199,12 @@ impl TextField {
             TextCommand::Cancel => {
                 self.editor.cancel_composition();
                 self.dragging = false;
+                self.request_reveal();
             }
             TextCommand::Submit => return Ok(TextResponse::Submit),
+        }
+        if !matches!(command, TextCommand::Copy | TextCommand::Cancel) {
+            self.request_reveal();
         }
         Ok(TextResponse::Handled)
     }
@@ -257,6 +311,7 @@ impl TextField {
             } else {
                 self.editor.move_caret(movement, extend, now)?;
             }
+            self.request_reveal();
             return Ok(TextResponse::Handled);
         }
         match event.key {
@@ -281,11 +336,40 @@ impl TextField {
                     now,
                 )?;
             }
+            Key::Named(NamedKey::PageUp | NamedKey::PageDown) => {
+                if self.editor.config().mode != LineMode::Multiline || ctrl || event.modifiers.alt {
+                    return Ok(TextResponse::Ignored);
+                }
+                let layout = self.layout.as_ref().ok_or(TextError::StaleRevision)?;
+                let viewport = self.viewport.ok_or(TextError::StaleRevision)?;
+                self.editor.move_page(
+                    layout.as_ref(),
+                    event.key == Key::Named(NamedKey::PageDown),
+                    extend,
+                    viewport,
+                    now,
+                )?;
+            }
             Key::Named(NamedKey::Escape) => {
                 self.editor.cancel_composition();
                 self.dragging = false;
             }
             _ => return Ok(TextResponse::Ignored),
+        }
+        if matches!(
+            event.key,
+            Key::Named(
+                NamedKey::Backspace
+                    | NamedKey::Delete
+                    | NamedKey::Enter
+                    | NamedKey::Tab
+                    | NamedKey::ArrowUp
+                    | NamedKey::ArrowDown
+                    | NamedKey::PageUp
+                    | NamedKey::PageDown
+            )
+        ) {
+            self.request_reveal();
         }
         Ok(TextResponse::Handled)
     }
@@ -322,24 +406,52 @@ impl TextField {
             )
         {
             let layout = self.layout.as_ref().ok_or(TextError::StaleRevision)?;
-            self.editor.pointer_select(
-                layout.as_ref(),
-                event.position - content.origin,
-                !down || event.modifiers.shift,
-                content.size,
-                event.timestamp,
-            )?;
+            if self.masked_layout {
+                let raw = self.snapshot().text;
+                let adapter = MaskedLayout {
+                    raw,
+                    display: layout.as_ref(),
+                };
+                self.editor.pointer_select(
+                    &adapter,
+                    event.position - content.origin,
+                    !down || event.modifiers.shift,
+                    content.size,
+                    event.timestamp,
+                )?;
+            } else {
+                self.editor.pointer_select(
+                    layout.as_ref(),
+                    event.position - content.origin,
+                    !down || event.modifiers.shift,
+                    content.size,
+                    event.timestamp,
+                )?;
+            }
             if event.phase == PointerPhase::Up {
                 self.dragging = false;
             }
+            self.request_reveal();
             return Ok(TextResponse::Handled);
         }
         Ok(TextResponse::Ignored)
     }
     pub fn select_word(&mut self, point: LogicalPoint) -> Result<(), TextError> {
         let layout = self.layout.as_ref().ok_or(TextError::StaleRevision)?;
-        let caret = layout.hit_test(point + self.editor.scroll_offset())?;
-        self.editor.select_word(caret.index)
+        if self.masked_layout {
+            let raw = self.snapshot().text;
+            let adapter = MaskedLayout {
+                raw,
+                display: layout.as_ref(),
+            };
+            let caret = adapter.hit_test(point + self.editor.scroll_offset())?;
+            self.editor.select_word(caret.index)?;
+        } else {
+            let caret = layout.hit_test(point + self.editor.scroll_offset())?;
+            self.editor.select_word(caret.index)?;
+        }
+        self.request_reveal();
+        Ok(())
     }
     /// Scroll the prepared text layout by a logical delta, clamped to its content.
     /// Returns whether the effective offset changed. Prepare the field after text
@@ -351,8 +463,17 @@ impl TextField {
     ) -> Result<bool, TextError> {
         let layout = self.layout.as_ref().ok_or(TextError::StaleRevision)?;
         let before = self.editor.scroll_offset();
-        self.editor
-            .set_scroll_offset(layout.as_ref(), before + delta, viewport)?;
+        if self.masked_layout {
+            let adapter = MaskedLayout {
+                raw: self.snapshot().text,
+                display: layout.as_ref(),
+            };
+            self.editor
+                .set_scroll_offset(&adapter, before + delta, viewport)?;
+        } else {
+            self.editor
+                .set_scroll_offset(layout.as_ref(), before + delta, viewport)?;
+        }
         Ok(before != self.editor.scroll_offset())
     }
     /// Shapes committed navigation and transient display independently; preparation
@@ -364,6 +485,32 @@ impl TextField {
         bounds: LogicalRect,
         scale: ScaleFactor,
         now: u64,
+    ) -> Result<TextPresentation, ControlError> {
+        self.prepare_inner(backend, style, bounds, scale, now, false)
+    }
+
+    /// Prepare a masked presentation using one mask glyph per extended grapheme.
+    /// Selection/caret indices returned by this method address the masked layout.
+    pub fn prepare_password(
+        &mut self,
+        backend: &mut CosmicBackend,
+        style: &Style,
+        bounds: LogicalRect,
+        scale: ScaleFactor,
+        now: u64,
+    ) -> Result<TextPresentation, ControlError> {
+        self.password = true;
+        self.prepare_inner(backend, style, bounds, scale, now, true)
+    }
+
+    fn prepare_inner(
+        &mut self,
+        backend: &mut CosmicBackend,
+        style: &Style,
+        bounds: LogicalRect,
+        scale: ScaleFactor,
+        now: u64,
+        mask: bool,
     ) -> Result<TextPresentation, ControlError> {
         style.validate()?;
         if !bounds.is_valid()
@@ -397,21 +544,60 @@ impl TextField {
             font_revision,
         };
         let committed = self.snapshot();
-        let committed_layout = Arc::new(backend.shape(&request(committed.text.clone()))?);
-        if self.focused {
-            self.editor.reveal(
+        let committed_display = if mask {
+            mask_snapshot(&committed.text)
+        } else {
+            committed.text.clone()
+        };
+        let committed_layout = Arc::new(backend.shape(&request(committed_display))?);
+        if mask != self.masked_layout {
+            self.request_reveal();
+        }
+        // Content and viewport changes can invalidate a previously valid wheel or
+        // scrollbar offset. Clamp first, then reveal only for a new explicit request.
+        let previous_scroll = self.editor.scroll_offset();
+        if mask {
+            let adapter = MaskedLayout {
+                raw: committed.text.clone(),
+                display: committed_layout.as_ref(),
+            };
+            self.editor
+                .set_scroll_offset(&adapter, previous_scroll, content.size)?;
+        } else {
+            self.editor.set_scroll_offset(
                 committed_layout.as_ref(),
-                Caret {
-                    index: committed.selection.focus,
-                    affinity: Affinity::Downstream,
-                },
+                previous_scroll,
                 content.size,
             )?;
         }
+        if self.focused && self.revealed_stamp != self.reveal_stamp {
+            let caret = Caret {
+                index: committed.selection.focus,
+                affinity: Affinity::Downstream,
+            };
+            if mask {
+                let adapter = MaskedLayout {
+                    raw: committed.text.clone(),
+                    display: committed_layout.as_ref(),
+                };
+                self.editor.reveal(&adapter, caret, content.size)?;
+            } else {
+                self.editor
+                    .reveal(committed_layout.as_ref(), caret, content.size)?;
+            }
+            self.revealed_stamp = self.reveal_stamp;
+        }
         self.layout = Some(committed_layout.clone());
+        self.viewport = Some(content.size);
+        self.masked_layout = mask;
         let display = self.editor.display_snapshot()?;
+        let display_text = if mask {
+            mask_snapshot(&display.text)
+        } else {
+            display.text.clone()
+        };
         let mut layout = if committed.composition.is_some() {
-            Arc::new(backend.shape(&request(display.text.clone()))?)
+            Arc::new(backend.shape(&request(display_text.clone()))?)
         } else {
             // Without IME preedit the display text equals the committed text.
             // Reuse the layout just prepared above instead of shaping (or cloning
@@ -422,7 +608,15 @@ impl TextField {
             index: display.selection.focus,
             affinity: Affinity::Downstream,
         };
-        let mut candidate = self.editor.candidate_rect(layout.as_ref(), raw_caret)?;
+        let mut candidate = if mask {
+            let adapter = MaskedLayout {
+                raw: display.text.clone(),
+                display: layout.as_ref(),
+            };
+            self.editor.candidate_rect(&adapter, raw_caret)?
+        } else {
+            self.editor.candidate_rect(layout.as_ref(), raw_caret)?
+        };
         let mut display_scroll = self.editor.scroll_offset();
         if committed.composition.is_some() {
             let dx = candidate.left().min(0.0) + (candidate.right() - content.size.width).max(0.0);
@@ -443,7 +637,7 @@ impl TextField {
         let boundaries = committed
             .composition
             .as_ref()
-            .map(|_| grapheme_boundaries(display.text.text()));
+            .map(|_| grapheme_boundaries(display_text.text()));
         let snap = |i: usize| {
             let Some(boundaries) = &boundaries else {
                 // PlainEditor maintains caret and selection at grapheme edges.
@@ -454,12 +648,21 @@ impl TextField {
                 boundaries
                     .get(index)
                     .copied()
-                    .unwrap_or(display.text.text().len()),
+                    .unwrap_or(display_text.text().len()),
             )
         };
         let preedit = committed.composition.as_ref().map(|c| Selection {
-            anchor: snap(c.range.start),
-            focus: snap(c.range.start + c.preedit.len()),
+            anchor: snap(if mask {
+                self.mask_index(&display.text, TextIndex(c.range.start)).0
+            } else {
+                c.range.start
+            }),
+            focus: snap(if mask {
+                self.mask_index(&display.text, TextIndex(c.range.start + c.preedit.len()))
+                    .0
+            } else {
+                c.range.start + c.preedit.len()
+            }),
         });
         let caret = (self.editor.caret_visible(now)
             && committed
@@ -467,13 +670,25 @@ impl TextField {
                 .as_ref()
                 .is_none_or(|c| c.cursor_visible))
         .then_some(Caret {
-            index: snap(raw_caret.index.0),
+            index: snap(if mask {
+                self.mask_index(&display.text, raw_caret.index).0
+            } else {
+                raw_caret.index.0
+            }),
             ..raw_caret
         });
         let selection =
             (display.selection.anchor != display.selection.focus).then_some(Selection {
-                anchor: snap(display.selection.anchor.0),
-                focus: snap(display.selection.focus.0),
+                anchor: snap(if mask {
+                    self.mask_index(&display.text, display.selection.anchor).0
+                } else {
+                    display.selection.anchor.0
+                }),
+                focus: snap(if mask {
+                    self.mask_index(&display.text, display.selection.focus).0
+                } else {
+                    display.selection.focus.0
+                }),
             });
         let placeholder = self.editor.placeholder().is_some();
         if let Some(text) = self.editor.placeholder() {
@@ -497,7 +712,7 @@ impl TextField {
         let mut node = SemanticNode::new(id, Role::TextInput);
         node.name = Some(self.label.clone());
         node.bounds = bounds;
-        node.value = Some(snapshot.text.text().into());
+        node.value = (!self.password).then(|| snapshot.text.text().into());
         node.disabled = self.editor.disabled();
         node.focused = self.focused;
         if !node.disabled {
@@ -514,6 +729,56 @@ impl TextField {
         s
     }
 }
+
+fn mask_snapshot(snapshot: &TextSnapshot) -> TextSnapshot {
+    let graphemes = grapheme_boundaries(snapshot.text()).len().saturating_sub(1);
+    TextSnapshot::new("•".repeat(graphemes), snapshot.revision())
+}
+
+struct MaskedLayout<'a> {
+    raw: TextSnapshot,
+    display: &'a ShapedText,
+}
+impl TextLayout for MaskedLayout<'_> {
+    fn text(&self) -> &TextSnapshot {
+        &self.raw
+    }
+    fn size(&self) -> LogicalSize {
+        self.display.size()
+    }
+    fn hit_test(&self, point: LogicalPoint) -> Result<Caret, TextError> {
+        let mut caret = self.display.hit_test(point)?;
+        caret.index = raw_offset(&self.raw, caret.index);
+        Ok(caret)
+    }
+    fn caret_bounds(&self, mut caret: Caret) -> Result<LogicalRect, TextError> {
+        caret.index = mask_offset(&self.raw, caret.index);
+        self.display.caret_bounds(caret)
+    }
+    fn selection_bounds(&self, mut selection: Selection) -> Result<Vec<LogicalRect>, TextError> {
+        selection.anchor = mask_offset(&self.raw, selection.anchor);
+        selection.focus = mask_offset(&self.raw, selection.focus);
+        self.display.selection_bounds(selection)
+    }
+}
+fn mask_offset(raw: &TextSnapshot, index: TextIndex) -> TextIndex {
+    let boundaries = grapheme_boundaries(raw.text());
+    TextIndex(
+        boundaries
+            .partition_point(|boundary| *boundary <= index.0)
+            .saturating_sub(1)
+            * '•'.len_utf8(),
+    )
+}
+fn raw_offset(raw: &TextSnapshot, index: TextIndex) -> TextIndex {
+    let boundaries = grapheme_boundaries(raw.text());
+    let grapheme = index.0 / '•'.len_utf8();
+    TextIndex(
+        *boundaries
+            .get(grapheme)
+            .unwrap_or_else(|| boundaries.last().expect("grapheme boundaries include zero")),
+    )
+}
 impl ProfileAdapter for TextField {
     fn configuration(&self) -> EditorConfig {
         self.editor.config().clone()
@@ -523,11 +788,14 @@ impl ProfileAdapter for TextField {
         self.layout = None;
         self.dragging = false;
         self.editor.set_focused(self.focused, 0);
+        self.request_reveal();
         Ok(())
     }
     fn select_range(&mut self, s: Selection) -> Result<(), TextError> {
         self.editor
-            .select(self.editor.snapshot().text.revision(), s)
+            .select(self.editor.snapshot().text.revision(), s)?;
+        self.request_reveal();
+        Ok(())
     }
     fn insert(&mut self, s: &str) -> Result<(), TextError> {
         self.insert_text(s, 0)

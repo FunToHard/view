@@ -114,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     path.close();
     let path = path.build();
     let mut fonts = CosmicBackend::from_fonts(
-        [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+        [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
         2,
     )?;
     let layout = Arc::new(fonts.shape(&LayoutRequest {
@@ -211,9 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     renderer.prepare(&shapes)?;
     assert!(renderer.cache_stats().geometry_hits > 0);
-    fonts.reload_fonts([
-        include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec(),
-    ])?;
+    fonts.reload_fonts([include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()])?;
     let text = PaintSnapshot {
         items: vec![Paint::Draw(Draw::new(
             Primitive::Text {

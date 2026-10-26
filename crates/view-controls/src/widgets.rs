@@ -16,6 +16,9 @@ pub struct ControlSemantics {
     pub range: Option<(f64, f64, f64, f64)>,
     pub expanded: Option<bool>,
     pub selected: Option<bool>,
+    /// Full data dimensions and zero-based cell positions survive virtualization.
+    pub table_dimensions: Option<(usize, usize)>,
+    pub cell_position: Option<(usize, usize)>,
 }
 impl ControlSemantics {
     pub fn new(node: SemanticNode) -> Self {
@@ -29,6 +32,8 @@ impl ControlSemantics {
             range: None,
             expanded: None,
             selected: None,
+            table_dimensions: None,
+            cell_position: None,
         }
     }
 }
@@ -332,7 +337,7 @@ impl Slider {
                 self.dragging = false;
                 return Ok(false);
             }
-            view_core::PointerPhase::Up => {
+            view_core::PointerPhase::Up if e.button == Some(view_core::PointerButton::Primary) => {
                 if !self.dragging {
                     return Ok(false);
                 }

@@ -71,5 +71,13 @@ implemented framework behavior, native E2E or full cross-platform product suppor
 
 ## License
 
+The [setup guide](docs/guides/setup.md),
+[network UI guide](docs/guides/network-ui.md),
+[preview compatibility matrix](docs/plan/preview-release.md),
+[requirement audit](docs/plan/preview-traceability.md) and
+[unreleased changelog](CHANGELOG.md) describe the current 0.1 preview.
+Run `pwsh -File scripts/qualify-release.ps1 -Profiles` for local package and
+independent feature qualification; publication remains disabled.
+
 Licensed under either the [MIT license](LICENSE-MIT) or the
 [Apache License, Version 2.0](LICENSE-APACHE), at your option.

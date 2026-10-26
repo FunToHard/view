@@ -202,11 +202,17 @@ impl PlainEditor {
             self.focused = false;
         }
     }
+    /// Reaffirming focus preserves caret blink and the current typing group.
+    /// Actual transitions reset both; reaffirming blur still cancels preedit.
+    /// Call `break_group` explicitly for a host-defined undo boundary.
     pub fn set_focused(&mut self, focused: bool, now_ms: u64) {
-        self.focused = focused && !self.disabled;
-        self.blink_epoch = now_ms;
-        self.break_group();
-        if !self.focused {
+        let focused = focused && !self.disabled;
+        if self.focused != focused {
+            self.focused = focused;
+            self.blink_epoch = now_ms;
+            self.break_group();
+        }
+        if !focused {
             self.composition = None;
         }
     }
@@ -221,6 +227,20 @@ impl PlainEditor {
             && self.composition.as_ref().is_none_or(|c| c.cursor_visible)
             && (self.composition.is_some()
                 || (now_ms.saturating_sub(self.blink_epoch) / 500).is_multiple_of(2))
+    }
+    /// The next 500 ms caret phase boundary in the caller's millisecond clock.
+    /// A preedit caret is steady, so composition requires no periodic wakeup.
+    /// Returns `None` when no caret blinks or no future deadline is representable.
+    pub fn next_caret_blink(&self, now_ms: u64) -> Option<u64> {
+        if !self.focused
+            || self.disabled
+            || !self.state.selection.range().is_empty()
+            || self.composition.is_some()
+        {
+            return None;
+        }
+        let phase = now_ms.saturating_sub(self.blink_epoch) / 500;
+        self.blink_epoch.checked_add((phase + 1).checked_mul(500)?)
     }
     pub fn placeholder(&self) -> Option<&str> {
         (self.state.text.is_empty()
@@ -560,6 +580,40 @@ impl PlainEditor {
         self.place(next.index, extend, now_ms)?;
         self.preferred_x = Some(x);
         Ok(())
+    }
+    /// Move by the measured viewport height, with a minimum of one visual line.
+    /// Uses the same remembered horizontal position as vertical arrows, preserves
+    /// the selection anchor when extending, and reveals the resulting caret.
+    /// The host supplies the current content viewport, excluding decoration.
+    pub fn move_page(
+        &mut self,
+        layout: &impl TextLayout,
+        down: bool,
+        extend: bool,
+        viewport: LogicalSize,
+        now_ms: u64,
+    ) -> Result<(), TextError> {
+        self.require_layout(layout)?;
+        if !viewport.width.is_finite()
+            || !viewport.height.is_finite()
+            || viewport.width <= 0.0
+            || viewport.height <= 0.0
+        {
+            return Err(TextError::InvalidMetrics);
+        }
+        let rect = layout.caret_bounds(Caret {
+            index: self.state.selection.focus,
+            affinity: Affinity::Downstream,
+        })?;
+        let x = self.preferred_x.unwrap_or(rect.origin.x);
+        let distance = viewport.height.max(rect.size.height);
+        let y = rect.origin.y + rect.size.height * 0.5 + if down { distance } else { -distance };
+        let next = layout.hit_test(LogicalPoint::new(x, y))?;
+        // Check geometry before changing selection so rejection is atomic.
+        layout.caret_bounds(next)?;
+        self.place(next.index, extend, now_ms)?;
+        self.preferred_x = Some(x);
+        self.reveal(layout, next, viewport)
     }
     pub fn reveal(
         &mut self,

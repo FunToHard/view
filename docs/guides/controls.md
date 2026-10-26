@@ -31,7 +31,13 @@ Call behavior methods once from routed input, then invalidate paint/semantics
   rejected; horizontal navigation has a logical fallback before first preparation.
   `TextField::scroll_by` applies a clamped wheel delta against the prepared layout
   and reports whether the offset changed. Normal form Tab traverses; a multiline
-  engine may explicitly opt into insertion.
+  engine may explicitly opt into insertion. Multiline PageUp/PageDown moves by
+  the prepared content viewport height (at least one measured visual line),
+  retains horizontal intent across short lines, and reveals the caret. Shift
+  preserves the selection anchor. Repeated pages clamp to the first/last visual
+  line. Ctrl/Alt/Meta Page chords and single-line Page keys remain available to
+  the host. Read-only fields allow page selection; composition leaves Page keys
+  to the IME. Prepare again after a content-size/style/value change.
 - Prepare `TextPresentation` with actual style, bounds and DPI. Its clipped
   selection, preedit and caret use the shaping engine's geometry. Pass `candidate`
   to `ImeService::set_ime_cursor_area`; do not add window origin or scale twice.
@@ -43,6 +49,11 @@ Call behavior methods once from routed input, then invalidate paint/semantics
   Read-only fields retain selection and Copy; mutations reject. Disabled fields
   reject actions. A failed platform service is not silently replaced with a fake
   clipboard or command interpreter.
+- The gallery and View Pad retain their logical keyboard target across native
+  deactivation, while suppressing control focus/caret/candidate presentation and
+  late key/text/IME edits. Native activation restores that target. Blur cancels
+  capture, preedit and held presses; inactive hover/wheel routing remains usable.
+  Their normal event loops wait without periodic redraw when no caret can blink.
 - Numeric fields keep intermediate text (including invalid `-`) separate from
   the committed number. Enter validates/rounds/commits, Escape restores, arrows
   step, and read-only/disabled modes forbid commits. Sliders clamp/snap to range.
@@ -122,10 +133,40 @@ focus stop enters/leaves focus.
 
 Left/Right wrap over enabled entries; Home/End select the endpoints. Key-up,
 Ctrl/Alt/Meta chords, vertical arrows and Tab are not consumed. Activation is
-automatic on navigation; manual activation, vertical tabs, closing/reordering,
-docking and tear-off are not implemented. Applications own panel lifetime and
-state, hide inactive interactive descendants from focus/hit testing/semantics,
-and decide where focus goes when a panel is removed.
+automatic on navigation; manual activation and vertical tabs are not part of this
+profile. Separate docking and tear-off data use `DockLayout`. `DockSnapshot`
+validates unique window, stack and tab IDs, split ratios, active tabs and finite
+positive window bounds. Its bounded, versioned binary codec is optional; hosts may
+persist the data in their own format. It does not create native windows. `move_tab`
+and `tear_off` are atomic model operations. `restore_in_work_areas` clamps saved
+outer bounds to available monitor work areas; native hosts supply physical desktop
+pixels consistently. `DockCommand` creates a validated transition/migration plan
+before hosts stage native windows, revoke old ownership and commit the model.
+Native multi-window activation/IME and drag hit testing remain host responsibilities.
+`reconcile_runtime` suspends inactive panels and returns capture-cancellation actions
+for host delivery. See [docking and password evidence](../plan/evidence/controls-expansion.md).
+
+`PasswordField` masks its presentation by default, omits the value from semantics,
+and requires explicit `expose_value` access for application submission. Reveal is
+explicit and automatically disabled when the control is disabled. This is a UI
+privacy boundary, not zeroizing or locked secret storage; applications remain
+responsible for avoiding logs and controlling their own value copies.
+
+## Select, collections and dialog presentation
+
+`Select` uses the shared `PopupStack`: navigation changes a pending option,
+commit changes the selected key, and Escape cancels. Options have stable keys,
+disabled entries are skipped, and typeahead and semantic actions use the same
+selection rules. Hosts own popup geometry, runtime child reconciliation and focus
+return; the gallery demonstrates those boundaries.
+
+`Table::PROFILE` is `bounded-table/1`: read-only keyed rows, cell navigation,
+row selection and two-axis virtualization. `TableLimits` bounds rows, columns
+and realized cells. Sorting replaces keyed rows in application-selected order;
+cell editing, column dragging, and spreadsheet formulas are outside this profile.
+Menu/dialog/list/tree presentation helpers reuse their behavior engines rather
+than maintaining separate input state. See the executable scenarios in
+`crates/view-controls/tests/collections_completion.rs` and the gallery.
 
 `semantics` exposes a selected tab rather than checkbox state. The existing
 custom-role extension maps tab, tab-list and tab-panel to AccessKit roles. The

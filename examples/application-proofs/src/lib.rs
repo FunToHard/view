@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 #[cfg(feature = "native")]
 pub mod native;
+pub mod performance;
 pub mod presentation;
 pub mod service;
 use std::{sync::Arc, time::Duration};

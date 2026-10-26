@@ -161,6 +161,12 @@ impl<M, A> Runtime<M, A> {
         Ok(self.nodes.get(id.0)?.structure)
     }
 
+    /// Resolve the live owning window before planning cross-window lifecycle effects.
+    /// Unlike a committed snapshot, this checks the current node generation.
+    pub fn node_window(&self, id: NodeId) -> Result<WindowId, CoreError> {
+        Ok(self.nodes.get(id.0)?.window)
+    }
+
     /// Last fully published tree. Mutations remain invisible here until commit.
     pub fn snapshot(&self) -> &Snapshot {
         &self.snapshot

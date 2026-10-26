@@ -1,5 +1,11 @@
 # view project plan
 
+Scope amendment — 2026-10-25: the owner reactivated remaining implementation and
+feasible Later increments on this Windows machine. The bounded profiles and
+acceptance limits are recorded in the [decision register](../design/09-decisions-and-questions.md)
+and [expansion evaluation](evidence/expansion-feasibility.md). This supersedes the
+queue restriction below, without waiving native or other-platform release gates.
+
 Priority amendment — 2026-10-23: the owner authorized building UI controls before
 finishing remaining framework milestones. Unfinished implementation/qualification
 items are deferred from the active queue, not marked passed or removed from release

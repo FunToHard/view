@@ -6,12 +6,18 @@
 
 mod boundaries;
 mod editor;
+mod large_document;
+mod pagination;
 mod profiles;
+mod rich_document;
 #[cfg(feature = "shaping")]
 mod shaping;
 pub use boundaries::*;
 pub use editor::*;
+pub use large_document::*;
+pub use pagination::*;
 pub use profiles::*;
+pub use rich_document::*;
 #[cfg(feature = "shaping")]
 pub use shaping::*;
 

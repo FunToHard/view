@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "path": "fixtures/fonts/NotoSans-LICENSE",
+      "source": "tests/fixtures/fonts/NotoSans-LICENSE",
+      "sha256": "5ec4347054089def6904da61d04f0360968f9ef36634b1fe007a5b6ec2f7aa96"
+    },
+    {
+      "path": "fixtures/fonts/NotoSans-Regular.ttf",
+      "source": "tests/fixtures/fonts/NotoSans-Regular.ttf",
+      "sha256": "2ec33f84606cbaa0a1a944488e14f97faf2f6a25ecdd8354f5358f06da13c7d9"
+    },
+    {
+      "path": "fixtures/fonts/NotoSansArabic.ttf",
+      "source": "tests/fixtures/fonts/NotoSansArabic.ttf",
+      "sha256": "ee489b994b3e62def9874c918145e32b133b625abaf98cec60502bdb40102c56"
+    },
+    {
+      "path": "fixtures/fonts/NotoSansHebrew.ttf",
+      "source": "tests/fixtures/fonts/NotoSansHebrew.ttf",
+      "sha256": "3d4fef85b449ade4d165de982969374fa30b2a5fe7bc679f5a3f5bfc047fb703"
+    }
+  ]
+}

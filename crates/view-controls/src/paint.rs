@@ -64,6 +64,49 @@ impl crate::Label {
     }
 }
 
+impl crate::ControlRow {
+    /// Draw only the visible portion; layout and input remain backend independent.
+    pub fn paint(
+        &self,
+        backend: &mut view_text::CosmicBackend,
+        style: &Style,
+        scale: view_core::ScaleFactor,
+    ) -> Result<Vec<Paint>, crate::ControlError> {
+        let Some(clip) = self.bounds.intersection(self.clip) else {
+            return Ok(vec![]);
+        };
+        let style = style.interaction(crate::Interaction {
+            disabled: self.disabled,
+            focused: self.focused,
+            ..Default::default()
+        });
+        let mut items = vec![];
+        if self.selected {
+            items.push(Paint::Draw(Draw::new(
+                Primitive::Rect(clip),
+                Color(style.selection.0),
+            )));
+        }
+        if self.focused {
+            let edge = LogicalRect::new(
+                clip.origin,
+                LogicalSize::new(2.0_f32.min(clip.size.width), clip.size.height),
+            );
+            items.push(Paint::Draw(Draw::new(
+                Primitive::Rect(edge),
+                Color(style.accent.0),
+            )));
+        }
+        let mut label =
+            crate::Label::new(&self.label).paint(backend, &style, self.bounds, scale)?;
+        if let Paint::Draw(draw) = &mut label {
+            draw.clip = Some(clip);
+        }
+        items.push(label);
+        Ok(items)
+    }
+}
+
 /// Paint a rectangular control frame, preserving the interior size.
 pub fn frame(bounds: LogicalRect, style: &Style) -> Vec<Paint> {
     let width = style

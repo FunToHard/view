@@ -124,6 +124,14 @@ impl SemanticBridge {
                 view_core::Role::Custom(name) if name == "list" => Role::ListBox,
                 view_core::Role::Custom(name) if name == "list-item" => Role::ListBoxOption,
                 view_core::Role::Custom(name) if name == "tree-item" => Role::TreeItem,
+                view_core::Role::Custom(name) if name == "tree" => Role::Tree,
+                view_core::Role::Custom(name) if name == "select" => Role::ComboBox,
+                view_core::Role::Custom(name) if name == "menu" => Role::Menu,
+                view_core::Role::Custom(name) if name == "menu-item" => Role::MenuItem,
+                view_core::Role::Custom(name) if name == "table" => Role::Table,
+                view_core::Role::Custom(name) if name == "row" => Role::Row,
+                view_core::Role::Custom(name) if name == "cell" => Role::Cell,
+                view_core::Role::Custom(name) if name == "column-header" => Role::ColumnHeader,
                 view_core::Role::Custom(name) if name == "tab" => Role::Tab,
                 view_core::Role::Custom(name) if name == "tab-list" => Role::TabList,
                 view_core::Role::Custom(name) if name == "tab-panel" => Role::TabPanel,
@@ -170,6 +178,20 @@ impl SemanticBridge {
             }
             if let Some(selected) = s.selected {
                 node.set_selected(selected);
+            }
+            if let Some((rows, columns)) = s.table_dimensions {
+                if rows == 0 || columns == 0 || role != Role::Table {
+                    return Err(ControlError::Invalid("semantic table dimensions"));
+                }
+                node.set_row_count(rows);
+                node.set_column_count(columns);
+            }
+            if let Some((row, column)) = s.cell_position {
+                if !matches!(role, Role::Cell | Role::ColumnHeader) {
+                    return Err(ControlError::Invalid("semantic table cell"));
+                }
+                node.set_row_index(row);
+                node.set_column_index(column);
             }
             if let Some((min, max, value, step)) = s.range {
                 if [min, max, value, step].iter().any(|v| !v.is_finite())

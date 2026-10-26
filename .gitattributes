@@ -12,6 +12,8 @@
 *.json text eol=lf
 *.txt text eol=lf
 *.ttf binary
-tests/fixtures/fonts/*-LICENSE -text
+# Preserve upstream license bytes in canonical and package-local fixtures.
+# Upstream license whitespace is intentional and covered by fixture hashes.
+**/fixtures/fonts/*-LICENSE -text -whitespace
 Cargo.lock text eol=lf
 LICENSE-* text eol=lf

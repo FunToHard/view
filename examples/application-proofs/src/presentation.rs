@@ -31,18 +31,89 @@ pub fn wait<T>(future: impl Future<Output = T>) -> Result<T> {
 pub struct Presentation {
     pub renderer: Renderer,
     pub candidate: Option<LogicalRect>,
+    /// Native hosts supply OS focus; offscreen proofs retain logical focus only.
+    pub native_focus: Option<bool>,
     fonts: CosmicBackend,
 }
+fn text_style() -> view::controls::Style {
+    view::controls::Style {
+        font_family: "Noto Sans".into(),
+        ..Default::default()
+    }
+}
+#[cfg(feature = "native")]
+pub(crate) fn prepare_text_pointer(
+    fonts: &mut CosmicBackend,
+    field: &mut view::controls::TextField,
+    bounds: LogicalRect,
+    scale: ScaleFactor,
+    timestamp: u64,
+) -> std::result::Result<LogicalRect, view::controls::ControlError> {
+    Ok(field
+        .prepare(fonts, &text_style(), bounds, scale, timestamp)?
+        .clip)
+}
+/// Refresh CPU layout before navigation, including queued edits not yet painted.
+/// This uses the paint adapter's style and does not submit or present GPU work.
+#[cfg(feature = "native")]
+pub(crate) fn prepare_text_navigation(
+    fonts: &mut CosmicBackend,
+    field: &mut view::controls::TextField,
+    bounds: LogicalRect,
+    scale: ScaleFactor,
+    event: &KeyboardEvent,
+) -> std::result::Result<bool, view::controls::ControlError> {
+    let command = event.modifiers.ctrl || event.modifiers.meta;
+    let geometry = match event.key {
+        Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowRight) => !command,
+        Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown) => true,
+        Key::Named(NamedKey::PageUp | NamedKey::PageDown) => {
+            !command && !event.modifiers.alt && field.editor().config().mode == LineMode::Multiline
+        }
+        _ => false,
+    };
+    if event.phase == KeyPhase::Up
+        || !geometry
+        || !field.focused()
+        || field.editor().disabled()
+        || field.snapshot().composition.is_some()
+    {
+        return Ok(false);
+    }
+    field.prepare(fonts, &text_style(), bounds, scale, event.timestamp)?;
+    Ok(true)
+}
 impl Presentation {
+    #[cfg(feature = "native")]
+    pub(crate) fn prepare_pointer(
+        &mut self,
+        field: &mut view::controls::TextField,
+        bounds: LogicalRect,
+        scale: ScaleFactor,
+        timestamp: u64,
+    ) -> std::result::Result<LogicalRect, view::controls::ControlError> {
+        prepare_text_pointer(&mut self.fonts, field, bounds, scale, timestamp)
+    }
     pub fn new(context: GpuContext, format: wgpu::TextureFormat) -> Result<Self> {
         Ok(Self {
             renderer: Renderer::new(context, format, Budgets::default())?,
             candidate: None,
+            native_focus: None,
             fonts: CosmicBackend::from_fonts(
-                [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+                [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
                 128,
             )?,
         })
+    }
+    #[cfg(feature = "native")]
+    pub(crate) fn prepare_navigation(
+        &mut self,
+        field: &mut view::controls::TextField,
+        bounds: LogicalRect,
+        scale: ScaleFactor,
+        event: &KeyboardEvent,
+    ) -> std::result::Result<bool, view::controls::ControlError> {
+        prepare_text_navigation(&mut self.fonts, field, bounds, scale, event)
     }
     pub fn paint(
         &mut self,
@@ -56,12 +127,10 @@ impl Presentation {
         let mut items = vec![];
         self.candidate = None;
         if let Some(field) = app.editing_node(window) {
-            let focused = app.ui.focused(window)? == Some(field);
+            let focused =
+                self.native_focus.unwrap_or(true) && app.ui.focused(window)? == Some(field);
             let bounds = app.ui.global_rect(field)?;
-            let style = view::controls::Style {
-                font_family: "Noto Sans".into(),
-                ..Default::default()
-            };
+            let style = text_style();
             let prepared = app.ui.update(
                 field,
                 Dirty::NONE,

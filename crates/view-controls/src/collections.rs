@@ -77,7 +77,7 @@ impl SelectionModel {
         Ok(())
     }
     pub fn key(&mut self, e: &KeyboardEvent, page: usize) -> Result<bool, ControlError> {
-        if e.phase == KeyPhase::Up || self.keys.is_empty() {
+        if e.phase == KeyPhase::Up || self.keys.is_empty() || e.modifiers.alt || e.modifiers.meta {
             return Ok(false);
         }
         let current = self
@@ -97,7 +97,7 @@ impl SelectionModel {
             Key::Named(NamedKey::ArrowUp) => current.saturating_sub(1),
             Key::Named(NamedKey::Home) => 0,
             Key::Named(NamedKey::End) => last,
-            Key::Named(NamedKey::PageDown) => (current + page.max(1)).min(last),
+            Key::Named(NamedKey::PageDown) => current.saturating_add(page.max(1)).min(last),
             Key::Named(NamedKey::PageUp) => current.saturating_sub(page.max(1)),
             Key::Named(NamedKey::Space) => {
                 let key = self.keys[current].clone();
@@ -304,7 +304,11 @@ impl Tree {
                             self.list.selection.select(&child, false, false)?;
                             self.list.reveal_focus();
                         }
-                    } else {
+                    } else if self
+                        .items
+                        .iter()
+                        .any(|item| item.parent.as_ref() == Some(&key))
+                    {
                         self.set_expanded(&key, true)?;
                     }
                     return Ok(true);
@@ -401,7 +405,10 @@ impl Scrollbar {
                     }
                 }
             }
-            view_core::PointerPhase::Cancel | view_core::PointerPhase::Up => self.drag = None,
+            view_core::PointerPhase::Cancel => self.drag = None,
+            view_core::PointerPhase::Up if e.button == Some(view_core::PointerButton::Primary) => {
+                self.drag = None
+            }
             _ => {}
         }
         Ok(old != scroll.offset)

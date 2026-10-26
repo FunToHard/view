@@ -138,10 +138,10 @@ fn snapshots_reject_duplicate_ids_and_updates_are_revision_and_budget_atomic() {
     assert!(SceneSnapshot::new(Revision::INITIAL, camera(), vec![object(1), object(1)]).is_err());
     let budgets = SceneBudgets {
         max_objects: 1,
-        upload_bytes: 128,
+        upload_bytes: 340,
         ..Default::default()
     };
-    // Triangle = 36 vertex bytes + 12 index bytes + 80 uniform bytes.
+    // Triangle = 72 position/normal bytes + 12 index bytes + 256 uniform bytes.
     let mut provider = SceneProvider::new(snapshot(5, vec![object(1)]), budgets).unwrap();
     assert!(provider.set_snapshot(snapshot(5, vec![])).is_err());
     assert!(provider.set_snapshot(snapshot(4, vec![])).is_err());
@@ -157,7 +157,7 @@ fn snapshots_reject_duplicate_ids_and_updates_are_revision_and_budget_atomic() {
         SceneProvider::new(
             snapshot(0, vec![object(1)]),
             SceneBudgets {
-                upload_bytes: 127,
+                upload_bytes: 339,
                 ..budgets
             }
         ),

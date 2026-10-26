@@ -333,7 +333,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     document.begin(CanvasPoint::new(12., 8.)?)?;
     let canvas = CanvasView::new(CanvasPoint::new(0., 0.)?, 1., LogicalSize::new(64., 32.))?;
     let mut fonts = CosmicBackend::from_fonts(
-        [include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+        [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
         2,
     )?;
     let inspector_label = Arc::new(fonts.shape(&LayoutRequest {

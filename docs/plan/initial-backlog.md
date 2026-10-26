@@ -1,5 +1,9 @@
 # Initial implementation backlog
 
+Scope amendment — 2026-10-25: remaining implementation and feasible Later profiles
+are active by owner request; see the [project plan](README.md) and canonical
+[checklist](implementation-checklist.md). Earlier queue restrictions below are historical.
+
 Priority amendment — 2026-10-23: the owner authorized building UI controls before
 finishing remaining framework milestones. Unfinished implementation/qualification
 items are deferred from the active queue, not marked passed or removed from release

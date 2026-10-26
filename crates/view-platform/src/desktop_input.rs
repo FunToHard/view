@@ -31,6 +31,18 @@ mod native {
         gate: usize,
     }
     impl WindowsDriver {
+        /// Read the current down state of a virtual key for opt-in cleanup diagnostics.
+        ///
+        /// This never inserts input, changes focus, or acquires desktop ownership.
+        /// A down state does not establish ownership: callers must never use this
+        /// query to release input they did not press through their desktop session.
+        pub fn key_is_down(key: u16) -> Result<bool, Error> {
+            if key == 0 || key > 254 {
+                return Err(Error::new(Code::Invalid, "virtual key"));
+            }
+            // SAFETY: scalar read-only Win32 query; no borrowed memory or input mutation.
+            Ok(unsafe { GetAsyncKeyState(i32::from(key)) < 0 })
+        }
         /// Installed layout handles, for fixture prerequisites. Does not activate a layout.
         pub fn installed_layouts() -> Vec<u64> {
             // SAFETY: query count then fill a bounded owned output slice.
@@ -224,13 +236,27 @@ mod native {
                                 return Err(Error::new(Code::Invalid, "virtual key"));
                             }
                             input.r#type = INPUT_KEYBOARD;
+                            // Navigation and right-side modifiers need the E0
+                            // prefix. Without it Windows can deliver numpad keys,
+                            // whose Shift/NumLock behavior differs from Home/End.
+                            // Apply the same flag to key-up so held-input cleanup
+                            // releases the key variant that was actually pressed.
+                            let extended = if matches!(
+                                vk,
+                                0x21..=0x28 | 0x2c..=0x2e | 0x5b..=0x5d | 0x6f | 0x90 | 0xa3 | 0xa5
+                            ) {
+                                KEYEVENTF_EXTENDEDKEY
+                            } else {
+                                KEYBD_EVENT_FLAGS(0)
+                            };
                             input.Anonymous.ki = KEYBDINPUT {
                                 wVk: VIRTUAL_KEY(vk),
-                                dwFlags: if up {
-                                    KEYEVENTF_KEYUP
-                                } else {
-                                    KEYBD_EVENT_FLAGS(0)
-                                },
+                                dwFlags: extended
+                                    | if up {
+                                        KEYEVENTF_KEYUP
+                                    } else {
+                                        KEYBD_EVENT_FLAGS(0)
+                                    },
                                 ..Default::default()
                             };
                         }

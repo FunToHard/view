@@ -3,14 +3,24 @@
 #![forbid(unsafe_code)]
 mod behavior;
 mod collections;
+mod docking;
+mod password;
 mod popup;
+mod presentation;
+mod select;
+mod table;
 mod tabs;
 mod text;
 mod theme;
 mod widgets;
 pub use behavior::*;
 pub use collections::*;
+pub use docking::*;
+pub use password::*;
 pub use popup::*;
+pub use presentation::*;
+pub use select::*;
+pub use table::*;
 pub use tabs::*;
 pub use text::*;
 pub use theme::*;

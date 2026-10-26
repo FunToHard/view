@@ -442,4 +442,55 @@ dependency is selected. Acceptance: [regressions and verification](../plan/evide
 
 Major decisions can graduate to individual ADR files when their alternatives need more detail. Keep this register as the index; do not create parallel contradictory “final plans.”
 
+2026-10-25 scope amendment: the owner requested feasible Later roadmap work in
+addition to remaining preview implementation. Bounded password/table/docking,
+large-document editing, SDR tiled document effects/export, and scene asset/light
+profiles are active increments, not claims that their entire expansion gates
+are complete. Documents remain application-owned; core has no new dependency.
+Diagnostics are a separate opt-in host-owned package, with Windows failure FFI
+behind the explicit `failure-fixture` feature. Existing hardware-wgpu rendering
+remains mandatory for GPU evidence. See [expansion evaluation](../plan/evidence/expansion-feasibility.md),
+[controls](../plan/evidence/controls-expansion.md),
+[large documents](../plan/evidence/f03-large-document.md),
+[image documents](../guides/image-documents.md),
+[scene assets](../plan/evidence/f05-scene-assets.md), and
+[diagnostics](../plan/evidence/m8-diagnostics.md) for affected contracts and limits.
+
+2026-10-26 follow-up: bounded rich-document transactions, measured-line pagination
+and conservative disjoint remote rebasing are application-owned services. Remote
+coordinates must validate against retained base text before transformation;
+bounded missing history or overlap produces an explicit conflict. These services
+do not silently become a rich visual editor or network CRDT. SDR image masks and
+box blur use linear premultiplied processing with explicit source/scratch/work
+budgets and straight-alpha sRGB storage. Native docking restoration persists
+physical outer-window bounds in the same space as monitor work areas. A narrow
+live runtime node-owner query prevalidates docking handles before focus/capture
+effects; Windows monitor FFI remains in the platform adapter. Evidence:
+[rich documents](../plan/evidence/f03-rich-documents.md),
+[masked effects](../plan/evidence/f06-masked-image-effects.md), and
+[native docking](../plan/evidence/controls-expansion.md).
+
 The owner subsequently authorized project initialization, Git setup, AGENTS.md and the remote. The initial workspace/facade and repository guidance are now present; see the backlog for actual evidence. Earlier planning-only statements are historical. Runtime implementation follows the M0/M1 plan within subsequent requested scope; routine work inside an authorized task does not require repeated approval.
+
+2026-10-26 text lifecycle refinement: native activation and retained logical focus
+are separate. Blur cancels transient preedit/press state and rejects late editing
+events; repaint cannot reactivate a field. Reasserting unchanged editor focus
+preserves typing-history groups and caret-blink phase. Hosts use the editor's
+absolute next-blink deadline, waiting without a timer when no caret can blink.
+Page movement uses measured content height and the same preferred horizontal
+position as vertical arrows. Geometry-sensitive input refreshes CPU text layout
+before hit-testing/navigation when queued edits have not yet painted. Reason:
+prevent stale-revision failures, unintended focus restoration and idle busy loops
+without adding a background task or GPU presentation to input handling. Contracts:
+[text editing](../guides/text-editing.md); acceptance:
+[integration](../plan/evidence/m8-integration.md) and
+[selected desktop](../plan/evidence/m5-automation.md).
+
+Caret reveal is requested by explicit editing/navigation/focus activity and
+password presentation-mode changes. Ordinary preparation clamps saved offsets
+without pulling a manually scrolled view back to the caret. The request is a
+bounded control-local stamp, including conservative mutable-editor access; masked
+scrolling uses the same grapheme coordinate adapter as masked hit-testing. This
+preserves host wheel intent while keeping current caret geometry available after
+an edit. Regression evidence is in `text_reveal_scheduling.rs` and the integration
+report linked above.

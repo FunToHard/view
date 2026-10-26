@@ -46,6 +46,22 @@ impl PopupStack {
     pub fn top(&self) -> Option<&Popup> {
         self.stack.last()
     }
+    pub fn contains(&self, content: NodeId) -> bool {
+        self.stack.iter().any(|popup| popup.content == content)
+    }
+    /// Dismiss this popup and its nested popups, returning only a live focus target.
+    pub fn dismiss(&mut self, content: NodeId, live: impl Fn(NodeId) -> bool) -> Option<NodeId> {
+        let index = self
+            .stack
+            .iter()
+            .position(|popup| popup.content == content)?;
+        let popup = self.stack[index];
+        self.stack.truncate(index);
+        popup
+            .return_focus
+            .filter(|id| live(*id))
+            .or_else(|| live(popup.owner).then_some(popup.owner))
+    }
     pub fn escape(&mut self, live: impl Fn(NodeId) -> bool) -> Option<NodeId> {
         self.stack.pop().and_then(|p| {
             p.return_focus
@@ -180,7 +196,11 @@ pub enum MenuResponse<A> {
 impl<A: Clone> Menu<A> {
     pub fn key(&mut self, event: &view_core::KeyboardEvent) -> MenuResponse<A> {
         use view_core::{Key, KeyPhase, NamedKey};
-        if event.phase == KeyPhase::Up {
+        if event.phase == KeyPhase::Up
+            || event.modifiers.ctrl
+            || event.modifiers.alt
+            || event.modifiers.meta
+        {
             return MenuResponse::Ignored;
         }
         match event.key {
@@ -218,7 +238,7 @@ impl<A: Clone> Menu<A> {
         let next = self
             .focused
             .and_then(|i| enabled.iter().position(|x| *x == i))
-            .map_or(0, |i| {
+            .map_or(if forward { 0 } else { enabled.len() - 1 }, |i| {
                 if forward {
                     (i + 1) % enabled.len()
                 } else {

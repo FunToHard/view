@@ -129,7 +129,7 @@ fn editor_visuals_keep_selection_text_preedit_caret_order_and_font_identity() {
         Affinity, Caret, CosmicBackend, LayoutRequest, Selection, TextBackend, TextIndex,
         TextRevision, TextSnapshot, Wrap,
     };
-    let font = include_bytes!("../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec();
+    let font = include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec();
     let mut backend = CosmicBackend::from_fonts([font.clone()], 2).unwrap();
     let request = LayoutRequest {
         text: TextSnapshot::new("abc", TextRevision::INITIAL),

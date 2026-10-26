@@ -40,21 +40,19 @@ fn camera() -> PerspectiveCamera {
     )
     .unwrap()
 }
+fn imported_quad() -> Arc<Mesh3D> {
+    Arc::new(
+        import_obj_positions(
+            "v -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\nf 1 2 3 4\n",
+            ObjLimits::default(),
+        )
+        .unwrap(),
+    )
+}
 fn object(id: u64, z: f32, scale: f32, color: [f32; 3]) -> SceneObject {
     SceneObject {
         id,
-        mesh: Arc::new(
-            Mesh3D::new(
-                vec![
-                    [-1.0, -1.0, 0.0],
-                    [1.0, -1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [-1.0, 1.0, 0.0],
-                ],
-                vec![0, 1, 2, 0, 2, 3],
-            )
-            .unwrap(),
-        ),
+        mesh: imported_quad(),
         transform: Transform3D::scale([scale, scale, 1.0])
             .unwrap()
             .then(Transform3D::translation([0.0, 0.0, z]).unwrap())
@@ -63,10 +61,22 @@ fn object(id: u64, z: f32, scale: f32, color: [f32; 3]) -> SceneObject {
     }
 }
 fn snapshot(revision: u64, reverse: bool) -> SceneSnapshot {
-    let mut objects = vec![
-        object(1, -2.0, 1.0, [0.5, 0.25, 0.75]),
-        object(2, -4.0, 3.0, [0.0, 0.0, 1.0]),
-    ];
+    let mut animated = object(1, -2.0, 1.0, [0.5, 0.25, 0.75]);
+    let movement = TranslationAnimation::new(vec![
+        TranslationKeyframe {
+            time_seconds: 0.0,
+            translation: [-0.2, 0.0, -2.0],
+        },
+        TranslationKeyframe {
+            time_seconds: 1.0,
+            translation: [0.2, 0.0, -2.0],
+        },
+    ])
+    .unwrap();
+    animated
+        .apply_translation_animation(&movement, 0.5)
+        .unwrap();
+    let mut objects = vec![animated, object(2, -4.0, 3.0, [0.0, 0.0, 1.0])];
     if reverse {
         objects.reverse();
     }
@@ -77,6 +87,30 @@ fn snapshot(revision: u64, reverse: bool) -> SceneSnapshot {
         object(5, -11.0, 100.0, [0.0, 1.0, 0.0]),
     ]);
     SceneSnapshot::new(Revision::from_raw(revision), camera(), objects).unwrap()
+}
+fn lit_snapshot(revision: u64, reverse: bool) -> SceneSnapshot {
+    lit_snapshot_with_light(revision, reverse, [0.0, 0.0, 1.0])
+}
+fn lit_snapshot_with_light(revision: u64, reverse: bool, direction: [f32; 3]) -> SceneSnapshot {
+    let vertices = vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]];
+    let indices = if reverse {
+        vec![0, 2, 1]
+    } else {
+        vec![0, 1, 2]
+    };
+    let light = DirectionalLight::new(direction, [1.0; 3], 2.0).unwrap();
+    SceneSnapshot::new(
+        Revision::from_raw(revision),
+        camera(),
+        vec![SceneObject {
+            id: 90,
+            mesh: Arc::new(Mesh3D::new(vertices, indices).unwrap()),
+            transform: Transform3D::translation([0.0, 0.0, -2.0]).unwrap(),
+            material: BasicMaterial::metallic_roughness([0.8, 0.35, 0.15], 0.0, 0.5, light)
+                .unwrap(),
+        }],
+    )
+    .unwrap()
 }
 fn render(
     context: &GpuContext,
@@ -223,6 +257,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     session.recreate(&other)?;
     let recreated = render(&other, &mut session, &replacement)?;
     assert_eq!(resized.rgba, recreated.rgba);
+    session
+        .provider_mut()?
+        .set_snapshot(lit_snapshot(5, false))?;
+    let lit = render(&other, &mut session, &replacement)?;
+    session
+        .provider_mut()?
+        .set_snapshot(lit_snapshot(6, true))?;
+    let unlit_face = render(&other, &mut session, &replacement)?;
+    let center = (32 * lit.size[0] as usize + 64) * 4;
+    assert!(
+        lit.rgba[center] > unlit_face.rgba[center] + 60,
+        "directional light should brighten the correctly oriented face: lit={:?}, back={:?}",
+        &lit.rgba[center..center + 4],
+        &unlit_face.rgba[center..center + 4]
+    );
+    session.resize([129, 65])?;
+    session
+        .provider_mut()?
+        .set_snapshot(lit_snapshot_with_light(7, false, [0.0, 0.0, -1.0]))?;
+    let opposed = render(&other, &mut session, &other.target([129, 65])?)?;
+    let center = (32 * 129 + 64) * 4;
+    // At this odd-sized target's center the view/light halfway vector is zero.
+    // Back lighting contributes no direct radiance; the analytic result is ambient.
+    for (channel, color) in [0.8_f64, 0.35, 0.15].into_iter().enumerate() {
+        let linear = ((color + 0.055) / 1.055).powf(2.4) * 0.03;
+        let encoded = if linear <= 0.0031308 {
+            linear * 12.92
+        } else {
+            1.055 * linear.powf(1.0 / 2.4) - 0.055
+        };
+        let expected = (encoded * 255.0).round() as u8;
+        assert!(opposed.rgba[center + channel].abs_diff(expected) <= 2);
+    }
+    assert_eq!(opposed.rgba[center + 3], 255);
     assert!(context.take_errors().is_empty());
     assert!(other.take_errors().is_empty());
     std::fs::create_dir_all("target/verification")?;
@@ -232,7 +300,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     std::fs::write("target/verification/m3b-scene.ppm", ppm)?;
     println!(
-        "PASS scene depth/order, model transforms, near/far/behind clipping, sRGB material, same-device composition, clear, aspect/resize, revision rejection and device recreation; pixel tolerance 2/255"
+        "PASS scene depth/order, imported asset, animated transform, derived normals, directional metallic-roughness shading, clipping, sRGB, composition, resize, revision and recreation; pixel tolerance 2/255"
     );
     Ok(())
 }

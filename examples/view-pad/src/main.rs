@@ -89,6 +89,7 @@ struct DocumentUi {
     semantic_revision: Revision,
     paint_revision: Revision,
     candidate: Option<LogicalRect>,
+    native_active: bool,
     path: Option<PathBuf>,
     saved_text: String,
     pending: Option<PendingAction>,
@@ -100,6 +101,10 @@ struct DocumentUi {
 
 impl DocumentUi {
     fn new() -> Result<Self> {
+        Self::with_fonts(view::text::CosmicBackend::system(256))
+    }
+
+    fn with_fonts(fonts: view::text::CosmicBackend) -> Result<Self> {
         let mut runtime = Runtime::new(64)?;
         let (window, root) = runtime.open_window(
             Description::new("view-pad", (), |_, _, _| Dirty::NONE)
@@ -193,11 +198,12 @@ impl DocumentUi {
             editor,
             buttons,
             status,
-            fonts: view::text::CosmicBackend::system(256),
+            fonts,
             bridge: SemanticBridge::default(),
             semantic_revision: Revision::INITIAL,
             paint_revision: Revision::INITIAL,
             candidate: None,
+            native_active: true,
             path: None,
             saved_text: String::new(),
             pending: None,
@@ -238,10 +244,19 @@ impl DocumentUi {
 
     fn set_focus(&mut self, target: Option<NodeId>, now: u64) -> Result<()> {
         self.runtime.set_focus(self.window, target)?;
+        self.sync_control_focus(now)
+    }
+
+    fn sync_control_focus(&mut self, now: u64) -> Result<()> {
+        let target = if self.native_active && self.pending.is_none() {
+            self.runtime.focused(self.window)?
+        } else {
+            None
+        };
         let editor = self.editor;
         self.runtime
             .update(editor, Dirty::PAINT, |field: &mut TextField| {
-                field.set_focused(target == Some(editor), now)
+                field.set_focused(target == Some(editor), now);
             })?;
         for id in self.buttons.clone() {
             self.runtime
@@ -250,6 +265,68 @@ impl DocumentUi {
                 })?;
         }
         Ok(())
+    }
+
+    fn set_native_active(&mut self, active: bool, now: u64) -> Result<()> {
+        self.native_active = active;
+        if !active {
+            self.runtime.cancel_pointer(self.window)?;
+            self.candidate = None;
+        }
+        self.sync_control_focus(now)
+    }
+
+    fn editor_accepts_input(&self) -> Result<bool> {
+        Ok(self.native_active
+            && self.pending.is_none()
+            && self.runtime.focused(self.window)? == Some(self.editor)
+            && self.runtime.state::<TextField>(self.editor)?.focused())
+    }
+
+    fn editor_key(&mut self, event: &KeyboardEvent, clipboard: &mut impl Clipboard) -> Result<()> {
+        if self.editor_accepts_input()? {
+            self.runtime.update(
+                self.editor,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |field: &mut TextField| field.key(event, clipboard),
+            )??;
+        }
+        Ok(())
+    }
+
+    fn native_text(&mut self, text: &str, now: u64) -> Result<()> {
+        if self.editor_accepts_input()? {
+            self.runtime.update(
+                self.editor,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |field: &mut TextField| field.insert_text(text, now),
+            )??;
+        }
+        Ok(())
+    }
+
+    fn native_ime(&mut self, event: &view_platform::ImeEvent, now: u64) -> Result<()> {
+        if self.editor_accepts_input()? {
+            self.runtime.update(
+                self.editor,
+                Dirty::PAINT.union(Dirty::SEMANTICS),
+                |field: &mut TextField| {
+                    view_platform::text::dispatch_ime(field.editor_mut(), event, now)
+                },
+            )??;
+        }
+        Ok(())
+    }
+
+    fn next_caret_blink(&self, now: u64) -> Result<Option<u64>> {
+        if !self.editor_accepts_input()? {
+            return Ok(None);
+        }
+        Ok(self
+            .runtime
+            .state::<TextField>(self.editor)?
+            .editor()
+            .next_caret_blink(now))
     }
 
     fn layout(&mut self, size: LogicalSize) -> Result<()> {
@@ -309,6 +386,18 @@ impl DocumentUi {
         Ok(status)
     }
 
+    /// Refresh CPU geometry for input that can arrive before the next paint.
+    fn prepare_editor_input(&mut self, scale: ScaleFactor, now: u64) -> Result<LogicalRect> {
+        let bounds = self.runtime.global_rect(self.editor)?;
+        let fonts = &mut self.fonts;
+        Ok(self
+            .runtime
+            .update(self.editor, Dirty::NONE, |field: &mut TextField| {
+                field.prepare(fonts, &self.document_style, bounds, scale, now)
+            })??
+            .clip)
+    }
+
     fn prepare(
         &mut self,
         physical_size: [u32; 2],
@@ -320,6 +409,7 @@ impl DocumentUi {
             physical_size[1] as f32 / scale.get(),
         );
         self.layout(logical)?;
+        self.sync_control_focus(now)?;
         self.paint_revision = self.paint_revision.checked_next()?;
         self.semantic_revision = self.semantic_revision.checked_next()?;
         self.candidate = None;
@@ -340,7 +430,11 @@ impl DocumentUi {
             parent: None,
             state: ControlSemantics::new(root_node),
         }];
-        let focused = self.runtime.focused(self.window)?;
+        let focused = if self.native_active && self.pending.is_none() {
+            self.runtime.focused(self.window)?
+        } else {
+            None
+        };
 
         for (index, id) in self.buttons.clone().into_iter().enumerate() {
             let bounds = self.runtime.global_rect(id)?;
@@ -375,7 +469,6 @@ impl DocumentUi {
             editor_id,
             Dirty::NONE,
             |field: &mut TextField| -> Result<_> {
-                field.set_focused(focused == Some(editor_id), now);
                 let presentation = field.prepare(fonts, style, editor_bounds, scale, now)?;
                 Ok((presentation, field.snapshot().text.text().to_owned()))
             },
@@ -550,6 +643,19 @@ struct GpuState {
     surface: WindowSurface<'static>,
     renderer: Renderer,
     _instance: wgpu::Instance,
+}
+
+fn blink_control_flow(
+    now: Instant,
+    next: &mut Instant,
+    deadline: Option<Instant>,
+) -> (ControlFlow, bool) {
+    let Some(deadline) = deadline else {
+        return (ControlFlow::Wait, false);
+    };
+    let redraw = now >= *next;
+    *next = deadline;
+    (ControlFlow::WaitUntil(*next), redraw)
 }
 
 struct App {
@@ -831,6 +937,11 @@ impl App {
             CursorIcon::Default
         };
         CursorService::set_cursor(&window, cursor)?;
+        // Native activation must precede presses. Hover, cancellation and
+        // inactive-window wheel scrolling still follow their normal routes.
+        if !self.ui.native_active && matches!(event.phase, PointerPhase::Down | PointerPhase::Up) {
+            return Ok(());
+        }
         if self.ui.pending.is_some() {
             if event.phase == PointerPhase::Up {
                 let (_, buttons) = prompt_layout(size);
@@ -874,13 +985,11 @@ impl App {
             }
         }
 
+        let content = self.prepare_editor_for_navigation(shell, event.timestamp)?;
         if let PointerPhase::Scroll { delta_x, delta_y } = event.phase {
             let bounds = self.ui.runtime.global_rect(self.ui.editor)?;
             if bounds.contains(event.position) {
-                let viewport = LogicalSize::new(
-                    (bounds.size.width - self.ui.document_style.padding * 2.0).max(1.0),
-                    (bounds.size.height - self.ui.document_style.padding * 2.0).max(1.0),
-                );
+                let viewport = content.size;
                 self.ui.runtime.update(
                     self.ui.editor,
                     Dirty::PAINT,
@@ -890,11 +999,10 @@ impl App {
                 )??;
             }
         } else {
-            let bounds = self.ui.runtime.global_rect(self.ui.editor)?;
             self.ui
                 .runtime
                 .update(self.ui.editor, Dirty::PAINT, |field: &mut TextField| {
-                    field.pointer(event, bounds)
+                    field.pointer(event, content)
                 })??;
         }
         if let Some(index) = activated {
@@ -910,6 +1018,9 @@ impl App {
         event_loop: &ActiveEventLoop,
         clipboard: &mut impl Clipboard,
     ) -> Result<()> {
+        if !self.ui.native_active {
+            return Ok(());
+        }
         if self.ui.pending.is_some() {
             if event.phase == KeyPhase::Down && event.key == Key::Named(NamedKey::Escape) {
                 self.ui.pending = None;
@@ -950,11 +1061,7 @@ impl App {
         }
         if let Some(target) = focused {
             if target == self.ui.editor {
-                self.ui.runtime.update(
-                    target,
-                    Dirty::PAINT.union(Dirty::SEMANTICS),
-                    |field: &mut TextField| field.key(&event, clipboard),
-                )??;
+                self.ui.editor_key(&event, clipboard)?;
             } else if let Some(index) = self.ui.buttons.iter().position(|id| *id == target) {
                 let activated =
                     self.ui
@@ -974,18 +1081,15 @@ impl App {
         self.ui.load_path(path, self.now_ms())
     }
 
-    fn prepare_editor_for_navigation(&mut self, shell: &PlatformShell, now: u64) -> Result<()> {
+    fn prepare_editor_for_navigation(
+        &mut self,
+        shell: &PlatformShell,
+        now: u64,
+    ) -> Result<LogicalRect> {
         let window = shell.get_window(self.ui.window).ok_or("missing window")?;
         self.ui.layout(window.logical_size())?;
-        let bounds = self.ui.runtime.global_rect(self.ui.editor)?;
         let scale = window.dpi().scale_factor;
-        let fonts = &mut self.ui.fonts;
-        self.ui
-            .runtime
-            .update(self.ui.editor, Dirty::NONE, |field: &mut TextField| {
-                field.prepare(fonts, &self.ui.document_style, bounds, scale, now)
-            })??;
-        Ok(())
+        self.ui.prepare_editor_input(scale, now)
     }
 
     fn drain_accessibility(
@@ -997,6 +1101,7 @@ impl App {
             .accessibility_mut(self.ui.window)
             .ok_or("missing accessibility adapter")?
             .drain()?;
+        let changed = !queued.is_empty();
         let now = self.now_ms();
         for request in queued {
             let routed = match self.ui.bridge.route(request.revision, &request.request) {
@@ -1040,6 +1145,9 @@ impl App {
                         Some("That accessibility action is not supported here".into());
                 }
             }
+        }
+        if changed && let Some(window) = shell.get_window(self.ui.window) {
+            window.request_redraw();
         }
         Ok(())
     }
@@ -1101,6 +1209,7 @@ impl PlatformHandler for App {
                 .dpi()
                 .scale_factor;
             let now = self.now_ms();
+            self.ui.set_native_active(raw.has_focus(), now)?;
             let (_, tree) = self
                 .ui
                 .prepare([size.width.max(1), size.height.max(1)], scale, now)?;
@@ -1130,8 +1239,23 @@ impl PlatformHandler for App {
         }
         let result: Result<()> = (|| {
             let now = self.now_ms();
+            if !self.ui.native_active
+                && matches!(
+                    &event,
+                    PlatformWindowEvent::Keyboard(_)
+                        | PlatformWindowEvent::TextInput(_)
+                        | PlatformWindowEvent::Ime(_)
+                )
+            {
+                return Ok(());
+            }
             match event {
-                PlatformWindowEvent::CloseRequested => self.close_request(shell, event_loop)?,
+                PlatformWindowEvent::CloseRequested => {
+                    self.close_request(shell, event_loop)?;
+                    if let Some(window) = shell.get_window(self.ui.window) {
+                        window.request_redraw();
+                    }
+                }
                 PlatformWindowEvent::RedrawRequested => self.draw(shell)?,
                 PlatformWindowEvent::Resized { logical_size, .. } => {
                     self.ui
@@ -1141,7 +1265,10 @@ impl PlatformHandler for App {
                 }
                 PlatformWindowEvent::ScaleFactorChanged(_) => self.draw(shell)?,
                 PlatformWindowEvent::Pointer(event) => {
-                    self.handle_pointer(event, shell, event_loop)?
+                    self.handle_pointer(event, shell, event_loop)?;
+                    if let Some(window) = shell.get_window(self.ui.window) {
+                        window.request_redraw();
+                    }
                 }
                 PlatformWindowEvent::Keyboard(event) => {
                     let window = shell
@@ -1156,6 +1283,8 @@ impl PlatformHandler for App {
                                     | NamedKey::ArrowRight
                                     | NamedKey::ArrowUp
                                     | NamedKey::ArrowDown
+                                    | NamedKey::PageUp
+                                    | NamedKey::PageDown
                             )
                         )
                     {
@@ -1179,44 +1308,26 @@ impl PlatformHandler for App {
                     window.request_redraw();
                 }
                 PlatformWindowEvent::TextInput(text) => {
-                    if self.ui.pending.is_none()
-                        && self.ui.runtime.focused(self.ui.window)? == Some(self.ui.editor)
-                    {
-                        self.ui.runtime.update(
-                            self.ui.editor,
-                            Dirty::PAINT.union(Dirty::SEMANTICS),
-                            |field: &mut TextField| field.insert_text(&text, now),
-                        )??;
-                    }
+                    self.ui.native_text(&text, now)?;
                     shell
                         .get_window(self.ui.window)
                         .ok_or("missing window")?
                         .request_redraw();
                 }
                 PlatformWindowEvent::Ime(event) => {
-                    if self.ui.pending.is_none()
-                        && self.ui.runtime.focused(self.ui.window)? == Some(self.ui.editor)
-                    {
-                        self.ui.runtime.update(
-                            self.ui.editor,
-                            Dirty::PAINT.union(Dirty::SEMANTICS),
-                            |field: &mut TextField| {
-                                view_platform::text::dispatch_ime(field.editor_mut(), &event, now)
-                            },
-                        )??;
-                    }
+                    self.ui.native_ime(&event, now)?;
                     shell
                         .get_window(self.ui.window)
                         .ok_or("missing window")?
                         .request_redraw();
                 }
-                PlatformWindowEvent::Focused(false) => {
-                    self.ui.runtime.cancel_pointer(self.ui.window)?;
-                    self.ui.runtime.update(
-                        self.ui.editor,
-                        Dirty::PAINT,
-                        |field: &mut TextField| field.set_focused(false, now),
-                    )?;
+                PlatformWindowEvent::Focused(active) => {
+                    self.ui.set_native_active(active, now)?;
+                    self.next_blink = Instant::now() + Duration::from_millis(500);
+                    shell
+                        .get_window(self.ui.window)
+                        .ok_or("missing window")?
+                        .request_redraw();
                 }
                 PlatformWindowEvent::FileDropped(path) => {
                     if self.ui.is_dirty()? {
@@ -1249,16 +1360,16 @@ impl PlatformHandler for App {
         self.drain_accessibility(shell, event_loop)
             .map_err(|error| PlatformError::EventLoop(error.to_string()))?;
         let now = Instant::now();
-        if self.ui.pending.is_none()
-            && self.ui.runtime.focused(self.ui.window)? == Some(self.ui.editor)
-            && now >= self.next_blink
-        {
-            if let Some(window) = shell.get_window(self.ui.window) {
-                window.request_redraw();
-            }
-            self.next_blink = now + Duration::from_millis(500);
+        let deadline = self
+            .ui
+            .next_caret_blink(self.now_ms())
+            .map_err(|error| PlatformError::EventLoop(error.to_string()))?
+            .and_then(|millis| self.started.checked_add(Duration::from_millis(millis)));
+        let (control_flow, redraw) = blink_control_flow(now, &mut self.next_blink, deadline);
+        if redraw && let Some(window) = shell.get_window(self.ui.window) {
+            window.request_redraw();
         }
-        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_blink));
+        event_loop.set_control_flow(control_flow);
         Ok(())
     }
 }
@@ -1270,4 +1381,324 @@ fn main() -> Result<()> {
     }
     PlatformApp::new(app, AppConfig::default())?.run()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use view::text::{CosmicBackend, EditorSession, MemoryClipboard, Selection, TextIndex};
+    use view_platform::ImeEvent;
+
+    fn document() -> DocumentUi {
+        DocumentUi::with_fonts(
+            CosmicBackend::from_fonts(
+                [include_bytes!("../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+                32,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn key(named: NamedKey, phase: KeyPhase) -> KeyboardEvent {
+        KeyboardEvent {
+            key: Key::Named(named),
+            phase,
+            modifiers: Modifiers::default(),
+            timestamp: 100,
+        }
+    }
+
+    fn paint(document: &mut DocumentUi, now: u64) -> (PaintSnapshot, accesskit::TreeUpdate) {
+        document.prepare([900, 640], ScaleFactor::ONE, now).unwrap()
+    }
+
+    fn caret_draws(snapshot: &PaintSnapshot) -> usize {
+        snapshot.items.iter().filter(|paint| matches!(paint,
+            Paint::Draw(draw) if draw.clip.is_some()
+                && matches!(&draw.primitive, Primitive::Rect(bounds) if bounds.size.width == 1.0)
+        )).count()
+    }
+
+    #[test]
+    fn queued_edit_pointer_refresh_uses_current_revision_and_content_origin() {
+        let mut document = document();
+        paint(&mut document, 0);
+        document.native_text("new text before paint", 1).unwrap();
+        let outer = document.runtime.global_rect(document.editor).unwrap();
+        let content = document.prepare_editor_input(ScaleFactor::ONE, 2).unwrap();
+        assert_eq!(
+            content.origin,
+            outer.origin
+                + LogicalPoint::new(
+                    document.document_style.padding,
+                    document.document_style.padding
+                )
+        );
+        document
+            .runtime
+            .update(document.editor, Dirty::PAINT, |field: &mut TextField| {
+                field.pointer(
+                    PointerEvent {
+                        phase: PointerPhase::Down,
+                        position: content.origin + LogicalPoint::new(0.0, 1.0),
+                        button: Some(PointerButton::Primary),
+                        modifiers: Modifiers::default(),
+                        timestamp: 2,
+                    },
+                    content,
+                )
+            })
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            document
+                .runtime
+                .state::<TextField>(document.editor)
+                .unwrap()
+                .snapshot()
+                .selection,
+            Selection::caret(TextIndex(0))
+        );
+    }
+
+    #[test]
+    fn blur_redraw_retains_logical_focus_but_hides_native_focus_and_rejects_late_edits() {
+        let mut document = document();
+        document.native_text("hello", 0).unwrap();
+        document
+            .native_ime(&ImeEvent::Preedit("transient".into(), Some((9, 9))), 1)
+            .unwrap();
+        assert!(
+            document
+                .runtime
+                .state::<TextField>(document.editor)
+                .unwrap()
+                .snapshot()
+                .composition
+                .is_some()
+        );
+        let (_, active_tree) = paint(&mut document, 2);
+        assert_eq!(
+            active_tree.focus,
+            document.bridge.id(document.editor).unwrap()
+        );
+        document.set_native_active(false, 3).unwrap();
+        assert_eq!(
+            document.runtime.focused(document.window).unwrap(),
+            Some(document.editor)
+        );
+        let before = document
+            .runtime
+            .state::<TextField>(document.editor)
+            .unwrap()
+            .snapshot();
+        assert!(before.composition.is_none());
+        for now in [4, 510, 1000] {
+            let (snapshot, tree) = paint(&mut document, now);
+            assert_eq!(tree.focus, document.bridge.id(document.root).unwrap());
+            assert_eq!(caret_draws(&snapshot), 0);
+            assert!(document.candidate.is_none());
+            assert!(
+                !document
+                    .runtime
+                    .state::<TextField>(document.editor)
+                    .unwrap()
+                    .focused()
+            );
+        }
+        document.native_text("late text", 1010).unwrap();
+        document
+            .native_ime(
+                &ImeEvent::Preedit("late preedit".into(), Some((0, 0))),
+                1011,
+            )
+            .unwrap();
+        document
+            .native_ime(&ImeEvent::Commit("late commit".into()), 1012)
+            .unwrap();
+        document
+            .editor_key(
+                &key(NamedKey::Backspace, KeyPhase::Down),
+                &mut MemoryClipboard::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            document
+                .runtime
+                .state::<TextField>(document.editor)
+                .unwrap()
+                .snapshot(),
+            before
+        );
+        document.set_native_active(true, 1020).unwrap();
+        let (snapshot, tree) = paint(&mut document, 1021);
+        assert_eq!(tree.focus, document.bridge.id(document.editor).unwrap());
+        assert_eq!(caret_draws(&snapshot), 1);
+        assert!(document.candidate.is_some());
+        document.native_text("!", 1022).unwrap();
+        assert_eq!(document.text().unwrap(), "hello!");
+    }
+
+    #[test]
+    fn paint_preserves_blink_epoch_and_typing_history_group() {
+        let mut document = document();
+        document.native_text("a", 0).unwrap();
+        let (shown, _) = paint(&mut document, 100);
+        assert_eq!(caret_draws(&shown), 1);
+        let (hidden, _) = paint(&mut document, 500);
+        assert_eq!(caret_draws(&hidden), 0);
+        document.native_text("b", 900).unwrap();
+        let (shown_again, _) = paint(&mut document, 1000);
+        assert_eq!(caret_draws(&shown_again), 1);
+        document
+            .runtime
+            .update(document.editor, Dirty::PAINT, |field: &mut TextField| {
+                field.editor_mut().undo()
+            })
+            .unwrap()
+            .unwrap();
+        assert_eq!(document.text().unwrap(), "");
+    }
+
+    #[test]
+    fn activation_cancels_held_button_and_restores_the_retained_target() {
+        let mut document = document();
+        let button = document.buttons[0];
+        document.set_focus(Some(button), 0).unwrap();
+        document
+            .runtime
+            .capture_pointer(document.window, button)
+            .unwrap();
+        document
+            .runtime
+            .update(button, Dirty::PAINT, |button: &mut Button| {
+                button.key(&key(NamedKey::Space, KeyPhase::Down))
+            })
+            .unwrap();
+        assert!(
+            document
+                .runtime
+                .state::<Button>(button)
+                .unwrap()
+                .behavior
+                .state()
+                .pressed
+        );
+        document.set_native_active(false, 10).unwrap();
+        assert_eq!(document.runtime.captured(document.window).unwrap(), None);
+        let (_, tree) = paint(&mut document, 11);
+        assert_eq!(tree.focus, document.bridge.id(document.root).unwrap());
+        let state = document
+            .runtime
+            .state::<Button>(button)
+            .unwrap()
+            .behavior
+            .state();
+        assert!(!state.focused && !state.pressed);
+        assert_eq!(
+            document.runtime.focused(document.window).unwrap(),
+            Some(button)
+        );
+        document.set_native_active(true, 20).unwrap();
+        let (_, tree) = paint(&mut document, 21);
+        assert_eq!(tree.focus, document.bridge.id(button).unwrap());
+        assert!(
+            !document
+                .runtime
+                .update(button, Dirty::PAINT, |button: &mut Button| button
+                    .key(&key(NamedKey::Space, KeyPhase::Up)))
+                .unwrap()
+        );
+        assert!(document.next_caret_blink(0).unwrap().is_none());
+    }
+
+    #[test]
+    fn idle_waits_without_caret_work_and_rearms_expired_blink_deadlines() {
+        let mut document = document();
+        let now = Instant::now();
+        let mut deadline = now - Duration::from_secs(1);
+        assert!(document.next_caret_blink(0).unwrap().is_some());
+        document.set_native_active(false, 0).unwrap();
+        assert_eq!(
+            blink_control_flow(
+                now,
+                &mut deadline,
+                document
+                    .next_caret_blink(0)
+                    .unwrap()
+                    .map(|millis| now + Duration::from_millis(millis))
+            ),
+            (ControlFlow::Wait, false)
+        );
+        document.set_native_active(true, 0).unwrap();
+        assert_eq!(
+            blink_control_flow(
+                now,
+                &mut deadline,
+                document
+                    .next_caret_blink(0)
+                    .unwrap()
+                    .map(|millis| now + Duration::from_millis(millis))
+            ),
+            (
+                ControlFlow::WaitUntil(now + Duration::from_millis(500)),
+                true
+            )
+        );
+        assert_eq!(
+            blink_control_flow(
+                now + Duration::from_millis(1),
+                &mut deadline,
+                Some(now + Duration::from_millis(500))
+            ),
+            (
+                ControlFlow::WaitUntil(now + Duration::from_millis(500)),
+                false
+            )
+        );
+        document.pending = Some(PendingAction::New);
+        let (snapshot, _) = paint(&mut document, 2);
+        assert!(document.next_caret_blink(0).unwrap().is_none());
+        assert_eq!(caret_draws(&snapshot), 0);
+        assert_eq!(
+            blink_control_flow(
+                now + Duration::from_secs(2),
+                &mut deadline,
+                document
+                    .next_caret_blink(0)
+                    .unwrap()
+                    .map(|millis| now + Duration::from_millis(millis))
+            ),
+            (ControlFlow::Wait, false)
+        );
+        document.pending = None;
+        document.set_focus(Some(document.editor), 3).unwrap();
+        document.native_text("abc", 3).unwrap();
+        let revision = document
+            .runtime
+            .state::<TextField>(document.editor)
+            .unwrap()
+            .snapshot()
+            .text
+            .revision();
+        document
+            .runtime
+            .update(document.editor, Dirty::PAINT, |field: &mut TextField| {
+                field.editor_mut().select(
+                    revision,
+                    Selection {
+                        anchor: TextIndex(0),
+                        focus: TextIndex(2),
+                    },
+                )
+            })
+            .unwrap()
+            .unwrap();
+        assert!(document.next_caret_blink(0).unwrap().is_none());
+        document
+            .native_ime(&ImeEvent::Preedit("hidden".into(), None), 4)
+            .unwrap();
+        assert!(document.next_caret_blink(0).unwrap().is_none());
+    }
 }

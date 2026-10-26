@@ -19,6 +19,105 @@ fn value(e: &PlainEditor) -> String {
 }
 
 #[test]
+fn reaffirmed_focus_preserves_blink_and_one_typing_undo_group() {
+    let mut editor = field("");
+    editor.set_focused(true, 0);
+    editor.insert("a", EditKind::Typing, 0).unwrap();
+    editor.set_focused(true, 200);
+    editor.set_focused(true, 450);
+    assert!(!editor.caret_visible(500));
+    editor.insert("b", EditKind::Typing, 600).unwrap();
+    editor.set_focused(true, 700);
+    assert_eq!(value(&editor), "ab");
+    assert!(editor.undo().unwrap());
+    assert_eq!(value(&editor), "");
+    assert!(editor.redo().unwrap());
+    assert_eq!(value(&editor), "ab");
+}
+
+#[test]
+fn actual_focus_transitions_break_typing_and_blur_reaffirmation_cancels_preedit() {
+    let mut editor = field("");
+    editor.set_focused(true, 0);
+    editor.insert("a", EditKind::Typing, 0).unwrap();
+    editor.set_focused(false, 10);
+    editor.set_focused(true, 20);
+    assert!(editor.caret_visible(20));
+    assert!(!editor.caret_visible(520));
+    editor.insert("b", EditKind::Typing, 30).unwrap();
+    assert!(editor.undo().unwrap());
+    assert_eq!(value(&editor), "a");
+    editor
+        .preedit("temporary", Selection::caret(TextIndex(9)))
+        .unwrap();
+    editor.set_focused(false, 40);
+    assert!(editor.snapshot().composition.is_none());
+    editor
+        .preedit("controlled", Selection::caret(TextIndex(10)))
+        .unwrap();
+    editor.set_focused(false, 50);
+    assert!(editor.snapshot().composition.is_none());
+    assert_eq!(value(&editor), "a");
+    editor.insert("b", EditKind::Typing, 60).unwrap();
+    editor.set_focused(false, 70);
+    editor.insert("c", EditKind::Typing, 80).unwrap();
+    assert!(editor.undo().unwrap());
+    assert_eq!(value(&editor), "a");
+    editor.set_focused(true, 90);
+    editor.insert("d", EditKind::Typing, 100).unwrap();
+    editor.break_group();
+    editor.insert("e", EditKind::Typing, 110).unwrap();
+    assert!(editor.undo().unwrap());
+    assert_eq!(value(&editor), "ad");
+}
+
+#[test]
+fn caret_deadlines_follow_phase_and_stop_for_selection_preedit_blur_and_overflow() {
+    let mut editor = field("abc");
+    assert_eq!(editor.next_caret_blink(0), None);
+    editor.set_focused(true, 100);
+    for (now, deadline, visible) in [
+        (100, 600, true),
+        (599, 600, true),
+        (600, 1100, false),
+        (1099, 1100, false),
+        (1100, 1600, true),
+    ] {
+        assert_eq!(editor.next_caret_blink(now), Some(deadline));
+        assert_eq!(editor.caret_visible(now), visible);
+    }
+    editor.set_focused(true, 700);
+    assert_eq!(editor.next_caret_blink(700), Some(1100));
+    select(&mut editor, 0, 2);
+    assert_eq!(editor.next_caret_blink(700), None);
+    select(&mut editor, 1, 1);
+    editor
+        .preedit("IME", Selection::caret(TextIndex(3)))
+        .unwrap();
+    assert!(editor.caret_visible(700));
+    assert_eq!(editor.next_caret_blink(700), None);
+    editor.cancel_composition();
+    assert_eq!(editor.next_caret_blink(700), Some(1100));
+    editor.set_focused(false, 800);
+    assert_eq!(editor.next_caret_blink(800), None);
+    editor.set_focused(true, 900);
+    assert_eq!(editor.next_caret_blink(900), Some(1400));
+    editor.set_modes(false, true);
+    assert_eq!(editor.next_caret_blink(900), None);
+    editor.set_modes(false, false);
+    editor.set_focused(true, 0);
+    assert_eq!(editor.next_caret_blink(u64::MAX), None);
+    editor.set_focused(false, u64::MAX - 400);
+    editor.set_focused(true, u64::MAX - 400);
+    assert!(editor.caret_visible(u64::MAX - 400));
+    assert_eq!(editor.next_caret_blink(u64::MAX - 400), None);
+    editor.set_focused(false, u64::MAX - 500);
+    editor.set_focused(true, u64::MAX - 500);
+    assert_eq!(editor.next_caret_blink(u64::MAX - 500), Some(u64::MAX));
+    assert_eq!(editor.next_caret_blink(u64::MAX), None);
+}
+
+#[test]
 fn grapheme_deletion_and_word_boundaries_have_independent_expectations() {
     let mut e = field("a👩‍💻e\u{301}🇯🇵");
     e.move_caret(Movement::DocumentEnd, false, 0).unwrap();

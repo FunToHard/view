@@ -379,7 +379,7 @@ fn capture(
         Budgets::default(),
     )?;
     let mut fonts = view_controls::view_text::CosmicBackend::from_fonts(
-        [include_bytes!("../../../../tests/fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
+        [include_bytes!("../../fixtures/fonts/NotoSans-Regular.ttf").to_vec()],
         32,
     )?;
     let scale = ScaleFactor::new(1.)?;

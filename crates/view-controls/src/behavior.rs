@@ -70,6 +70,18 @@ impl Pressable {
         false
     }
     pub fn key(&mut self, event: &KeyboardEvent) -> bool {
+        // A changed modifier on release must still clear the armed Space press.
+        if event.key == Key::Named(NamedKey::Space)
+            && event.phase == KeyPhase::Up
+            && self.source == Some(PressSource::Space)
+        {
+            self.cancel();
+            return !self.state.disabled
+                && self.state.focused
+                && !event.modifiers.ctrl
+                && !event.modifiers.alt
+                && !event.modifiers.meta;
+        }
         if self.state.disabled
             || !self.state.focused
             || event.modifiers.ctrl
@@ -179,7 +191,12 @@ impl RangeBehavior {
         self.set(stepped)
     }
     pub fn key(&mut self, event: &KeyboardEvent) -> Result<bool, ControlError> {
-        if event.phase == KeyPhase::Up || self.disabled {
+        if event.phase == KeyPhase::Up
+            || self.disabled
+            || event.modifiers.ctrl
+            || event.modifiers.alt
+            || event.modifiers.meta
+        {
             return Ok(false);
         }
         let value = match event.key {

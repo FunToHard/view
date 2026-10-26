@@ -1,5 +1,12 @@
 # Package and feature profiles
 
+`pwsh -File scripts/qualify-release.ps1 -Profiles` discovers every current
+workspace package and independent-consumer feature, checks package minimal/default/
+full profiles and runs each consumer feature separately plus the combined profile.
+It also audits archive contents, sibling versions, licenses and the minimal graph.
+This complements the normal verification suite and optional native/GPU modes below.
+See the [preview matrix](preview-release.md) for the remaining release gates.
+
 | Profile | Command | Evidence meaning |
 | --- | --- | --- |
 | Facade default | `cargo check -p view --locked` | Public package alone |
@@ -90,3 +97,16 @@ separate `controls`, `accessibility`, and `controls-render` profiles. Facade
 controls do not enable the gallery or native windowing. `scripts/verify.ps1`
 runs these profiles and the CPU gallery; `-Gpu` adds explicit GPU readbacks and
 Windows hidden gallery presentation. See [control coverage](evidence/m2b-controls.md).
+
+`view-controls/docking` is a separate native shell proof profile. It uses winit
+and view-platform without enabling gallery GPU or native accessibility/text-service
+features. Run `cargo run -p view-controls --features docking --example docking
+--locked -- --verify-hidden` on Windows for actual work-area restoration and panel
+migration evidence. It sends no physical input. This profile does not provide a
+rendered drag-and-drop docking control. The ordinary model tests remain portable.
+
+The optional text package now also includes application-owned
+[rich-document transactions and measured pagination](../guides/rich-documents.md).
+The renderer package's [SDR document helpers](../guides/image-documents.md) include
+bounded masks and blur; these CPU document operations do not enable a software
+rendering backend or replace hardware presentation.

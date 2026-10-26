@@ -16,6 +16,13 @@ Noto Sans, Noto Sans Hebrew and Noto Sans Arabic from the qualified cosmic-text
 than installed-font goldens. No emoji font is bundled; missing glyphs are observable.
 No images or user/network recordings are bundled.
 
+Packages that compile fixtures with `include_bytes!`/`include_str!` carry only the
+referenced fixture copies under their own `fixtures/` directory, so Cargo archives
+do not depend on repository-relative files. Each package's fixture manifest records
+the canonical path and SHA-256; `scripts/qualify-release.ps1` verifies both source
+and copy hashes and checks archive inclusion. Font copies retain `NotoSans-LICENSE`.
+The root fixture manifest remains the provenance and license source of truth.
+
 The optional scene GPU example (`crates/view-wgpu/examples/scene.rs`) constructs
 original analytic quad meshes and fixed camera/material values in source. It uses
 no asset files, randomness or installed resources; first-party MIT OR Apache-2.0

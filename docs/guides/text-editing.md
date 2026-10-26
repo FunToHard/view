@@ -32,6 +32,11 @@ remain distinct. The raster bridge exposes the buffer read-only.
   skip punctuation/whitespace. Arrows are logical; visual movement is explicit
   through shaped geometry. Home/End use hard lines; vertical movement uses wrapped
   lines and remembers horizontal position. Selection preserves anchor/direction.
+  `PlainEditor::move_page` uses the current content viewport height with a minimum
+  of one measured visual line, shares vertical arrows' remembered horizontal
+  position, and reveals the result. It clamps through shaped hit testing and
+  validates layout/viewport geometry before selection changes. The host selects
+  which Page key chords and control modes invoke it.
 - CRLF/CR normalize to LF. Single-line paste substitutes spaces or rejects the
   entire edit, according to configuration. Enter returns false for host submit
   handling. Multiline Enter inserts LF. Tab traverses unless multiline insertion
@@ -44,7 +49,10 @@ remain distinct. The raster bridge exposes the buffer read-only.
   cancel preedit, clear history/scroll, and reset or clamp selection. Revisions
   belong to a text owner and cannot be compared across owners.
 - Typing within 1,000 ms groups only at a continuing empty selection. Navigation,
-  focus, paste and composition break groups. Paste and IME commit each form one
+  focus transitions, paste and composition break groups. Reaffirming unchanged
+  focus preserves both the typing group and caret blink epoch; reaffirming blur
+  still cancels any controlled preedit. Hosts can call `break_group` explicitly
+  for another undo boundary. Paste and IME commit each form one
   transaction. Undo/redo restore text/selection while advancing value revision.
   History is bounded by both `history_limit` and `history_bytes_limit` (16 MiB
   by default, counted across retained UTF-8 snapshot text). Oldest snapshots are
@@ -55,6 +63,10 @@ remain distinct. The raster bridge exposes the buffer read-only.
   selection/clipboard/edits and removes caret focus. Placeholder is visible only
   for an empty value without nonempty preedit. The caller supplies milliseconds;
   focused caret blink uses 500 ms phases with no background timer.
+  `next_caret_blink(now_ms)` returns the next absolute phase deadline in that
+  same caller clock. It returns `None` for blurred/disabled/selected fields,
+  steady preedit carets, or an unrepresentable future deadline. Native hosts use
+  that deadline to wake only for eligible caret work.
 
 ## Shaping, composition and native services
 
@@ -120,3 +132,46 @@ selection/preedit/caret visuals. This closes specific offscreen drawing checks,
 not complete TextInput/TextArea or native IME conformance. Shaped layouts retain
 their font collection across reload; `with_raster_source` is an adapter bridge.
 Its mutable font system is for raster-cache access, not font database mutation.
+
+## Bounded large-document service
+
+`LargeDocument` in `view-text` is an application-owned plain-text model for
+editor-like tools. It is separate from the UI tree and `PlainEditor`. The model
+offers revision-checked line access through a sorted line-start index, literal
+search with a result cap, and atomic batches whose ranges all refer to one base
+revision. Successful edits, undo, and redo each advance the owner-local revision
+once. Invalid UTF-8 boundaries, overlaps, stale revisions, byte limits, and line
+limits reject without changing document content or revision. Undo history stores
+bounded edit deltas rather than full-document copies.
+
+The default model caps text at 64 MiB, line starts at 1,000,000, a batch at 4,096
+edits, history at 100 transactions/16 MiB of retained text payload, and search
+output at 10,000 matches. History payload bytes count deleted plus inserted UTF-8
+text; edit-vector metadata is separately bounded by the transaction and per-batch
+count limits. Applications can set smaller or larger limits when constructing the
+model. Line lookup is O(log n), but edits currently clone the text and rebuild the
+line index; this service does not claim rope-level edit cost or interactive
+latency for every 64 MiB document. It does not add incremental parsing or a
+renderer. See [F-03 service evidence](../plan/evidence/f03-large-document.md).
+
+The separate [bounded rich document profiles](rich-documents.md) add styled
+paragraph transactions, snapshot undo/redo, measured-line pagination and
+conservative revision-checked remote edit rebasing. They are application data
+services. A rich visual control, complete document layout/PDF and conflict-free
+network collaboration require additional profiles and acceptance evidence.
+
+## Manual scrolling and input geometry
+
+`TextField::prepare` clamps saved scrolling to the current content and viewport.
+An unchanged redraw preserves manual scrolling, including scrolling a focused
+caret out of view. Editing, navigation (even Home at the current index), pointer
+selection and focus entry request caret reveal. Mutable editor access conservatively
+requests reveal because the control cannot observe which editor operation a caller
+will perform; use `TextField::scroll_by` for manual scrolling.
+
+Before pointer hit-testing, wheel scrolling, visual arrows or page movement, hosts
+must prepare current CPU text layout if queued edits or bounds changes have not
+painted yet. Pass the returned `TextPresentation::clip` to `pointer`; outer field
+bounds include decoration padding. View Pad and the native proof follow this route
+without submitting GPU work. Gallery already prepares geometry before pointer events.
+`text_reveal_scheduling.rs` and the host queued-edit tests cover these boundaries.

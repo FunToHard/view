@@ -58,14 +58,50 @@ fn settle(context: &GpuContext) -> Result<()> {
     }
     Ok(())
 }
+#[derive(Clone, Copy)]
+struct FrameTiming {
+    prepare_ms: f64,
+    submit_ms: f64,
+}
+fn report_times(workload: &str, stage: &str, samples: &[f64]) {
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let percentile = |percent: usize| sorted[(sorted.len() * percent).div_ceil(100) - 1];
+    println!(
+        "TIMING {{\"workload\":\"{workload}\",\"stage\":\"{stage}\",\"samples\":{},\"first_ms\":{:.6},\"p50_ms\":{:.6},\"p95_ms\":{:.6},\"p99_ms\":{:.6},\"max_ms\":{:.6}}}",
+        samples.len(),
+        samples[0],
+        percentile(50),
+        percentile(95),
+        percentile(99),
+        sorted[sorted.len() - 1],
+    );
+}
+fn check_cache(renderer: &Renderer, fonts: &CosmicBackend, budgets: &Budgets) -> Result<()> {
+    let stats = renderer.cache_stats();
+    if stats.text_entries > budgets.max_text_entries
+        || stats.buffer_entries > budgets.max_buffer_entries
+        || stats.texture_bytes > budgets.texture_bytes
+        || stats.buffer_bytes > budgets.buffer_bytes
+        || stats.geometry_bytes > budgets.geometry_bytes
+        || stats.glyph_bytes > budgets.glyph_bytes
+        || fonts.cached_layouts() > 128
+    {
+        return Err(format!("retained cache exceeded configured budget: {stats:?}").into());
+    }
+    Ok(())
+}
 fn present(
     context: &GpuContext,
     surface: &mut WindowSurface<'_>,
     renderer: &mut Renderer,
     snapshot: &PaintSnapshot,
-) -> Result<()> {
+) -> Result<FrameTiming> {
     context.device().poll(wgpu::PollType::Poll)?;
+    let started = Instant::now();
     let mut prepared = Some(renderer.prepare(snapshot)?);
+    let prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let submit_started = Instant::now();
     surface.resize(snapshot.size);
     for _ in 0..8 {
         match surface.acquire(context)? {
@@ -75,7 +111,10 @@ fn present(
                     prepared.take().unwrap(),
                     Color([0.06, 0.075, 0.1, 1.0]),
                 )?;
-                return Ok(());
+                return Ok(FrameTiming {
+                    prepare_ms,
+                    submit_ms: submit_started.elapsed().as_secs_f64() * 1000.0,
+                });
             }
             Acquire::Retry | Acquire::Reconfigure => std::thread::sleep(Duration::from_millis(2)),
             Acquire::Suspended => return Err("probe unexpectedly suspended".into()),
@@ -144,8 +183,11 @@ impl App {
             ..Default::default()
         }))?;
         println!("ADAPTER {:?}", adapter.get_info());
-        if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
-            return Err("software adapter is not permitted".into());
+        if !matches!(
+            adapter.get_info().device_type,
+            wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::DiscreteGpu
+        ) {
+            return Err("a positively identified hardware adapter is required".into());
         }
         checkpoint("adapter_surface");
         let memory_hints = match self.memory_policy.as_str() {
@@ -173,7 +215,8 @@ impl App {
         }
         settle(&context)?;
         checkpoint("swapchain");
-        let mut renderer = Renderer::new(context.clone(), surface.format(), Budgets::default())?;
+        let budgets = Budgets::default();
+        let mut renderer = Renderer::new(context.clone(), surface.format(), budgets)?;
         let empty = PaintSnapshot {
             revision: Revision::INITIAL,
             size: [640, 360],
@@ -217,13 +260,17 @@ impl App {
         report_allocator(&context, "controls_idle");
         println!("STAGE resizing");
         let resize_started = Instant::now();
+        let mut total_times = Vec::with_capacity(1000);
+        let mut prepare_times = Vec::with_capacity(1000);
+        let mut submit_times = Vec::with_capacity(1000);
         for i in 0..1000 {
+            let frame_started = Instant::now();
             let phase = i % 400;
             let step = if phase < 200 { phase } else { 399 - phase };
             let _ =
                 window.request_inner_size(winit::dpi::PhysicalSize::new(640 + step, 360 + step));
             let size = window.inner_size();
-            present(
+            let timing = present(
                 &context,
                 &mut surface,
                 &mut renderer,
@@ -235,7 +282,17 @@ impl App {
                     i as u64,
                 )?,
             )?;
+            total_times.push(frame_started.elapsed().as_secs_f64() * 1000.0);
+            prepare_times.push(timing.prepare_ms);
+            submit_times.push(timing.submit_ms);
+            check_cache(&renderer, &fonts, &budgets)?;
         }
+        report_times("resize", "cpu_total", &total_times);
+        report_times("resize", "renderer_prepare", &prepare_times);
+        report_times("resize", "surface_submit", &submit_times);
+        report_times("resize", "cpu_total_warm", &total_times[100..]);
+        report_times("resize", "renderer_prepare_warm", &prepare_times[100..]);
+        report_times("resize", "surface_submit_warm", &submit_times[100..]);
         println!(
             "WORKLOAD resize_iterations=1000 elapsed_ms={}",
             resize_started.elapsed().as_millis()
@@ -246,13 +303,17 @@ impl App {
         println!("STAGE editing");
         let size = window.inner_size();
         let edit_started = Instant::now();
+        total_times.clear();
+        prepare_times.clear();
+        submit_times.clear();
         for i in 0..1000 {
+            let frame_started = Instant::now();
             if i % 2 == 0 {
                 field.insert_text("x", i)?;
             } else {
                 field.editor_mut().delete(true, false, i)?;
             }
-            present(
+            let timing = present(
                 &context,
                 &mut surface,
                 &mut renderer,
@@ -264,7 +325,17 @@ impl App {
                     i,
                 )?,
             )?;
+            total_times.push(frame_started.elapsed().as_secs_f64() * 1000.0);
+            prepare_times.push(timing.prepare_ms);
+            submit_times.push(timing.submit_ms);
+            check_cache(&renderer, &fonts, &budgets)?;
         }
+        report_times("edit", "cpu_total", &total_times);
+        report_times("edit", "renderer_prepare", &prepare_times);
+        report_times("edit", "surface_submit", &submit_times);
+        report_times("edit", "cpu_total_warm", &total_times[100..]);
+        report_times("edit", "renderer_prepare_warm", &prepare_times[100..]);
+        report_times("edit", "surface_submit_warm", &submit_times[100..]);
         println!(
             "WORKLOAD edit_iterations=1000 elapsed_ms={}",
             edit_started.elapsed().as_millis()
